@@ -1,0 +1,814 @@
+---
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+<pre>
+## Callin Switzer
+## Analysis for experiment 3, physical constraint hypotheisis
+### i.e. Does the mass of a flower affect bees sonication acceleration and frequency?
+
+## Initial commit: 12 October 2017
+## update 8 Dec 2017
+## update 9 Aug 2018 -- make figures svg
+## update 15 Dec 2018 -- make figures tiff
+## Jan 8 update analysis to make it like other experiment
+## Jan 14 2019 prep for zenodo
+</pre>
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+```
+
+
+```{r, warning = FALSE, message=FALSE}
+#install packages
+ipak <- function(pkg){
+     new.pkg <- pkg[!(pkg %in% installed.packages()[, "Package"])]
+     if(length(new.pkg)) install.packages(new.pkg, dependencies = TRUE)
+     sapply(pkg, require, character.only = TRUE)
+}
+
+packages <- c("ggplot2", 'lme4', 'sjPlot', 
+              "multcomp", "plyr", "gamm4", 
+              "cowplot", "tidyverse")
+ipak(packages)
+
+# set ggplot theme
+theme_set(theme_classic() + 
+            theme(axis.text=element_text(colour="black"), 
+                  text=element_text(size=10)))
+
+# set  directories
+dataDir <- file.path(getwd(), "data")
+figDir <- file.path(getwd(), "figures")
+
+print(paste("last run ", Sys.time()))
+print(R.version)
+```
+
+# Read in data
+# Calculate some descriptive statistics
+
+
+```{r}
+new_df = read.csv(file.path(dataDir, "02_1_HeavyLight_cleaned_posAdded.csv"))
+
+# re-number colony number -- 3 & 4 should be 1 and 2
+new_df$hive <- as.factor(as.numeric(as.character(new_df$hive)) - 2)
+
+new_df$amp = new_df$MinMax_amp_Volts
+new_df$amp_acc = new_df$MinMax_amp_acc_m.s.s
+
+# divide amplitude by two
+new_df$amp = new_df$amp / 2
+new_df$amp_acc = new_df$amp_acc / 2
+
+new_df$hive = as.factor(new_df$hive)
+new_df$treatment <- mapvalues(new_df$treatment, from = c("sham", "weighted"), to = c("Sham", "Weighted"))
+
+# print some descriptive statistics
+nrow(new_df)
+unique(new_df$hive)
+
+# get sample size info
+summdf <- new_df %>%
+  group_by(beeID, treatment) %>%
+  summarize(id_count = n())
+
+
+sum(summdf$id_count)
+length(unique(summdf$beeID))
+nrow(summdf)
+
+```
+
+# Data engineering for analysis
+
+```{r}
+## add visitNumber counters for each bee and treatment
+new_df <- new_df %>%
+          arrange(beeID, datetime) %>%
+          group_by(Folder, treatment) %>%
+  # make visit number for each treatment
+          mutate(visitNum_positive = seq(n())) %>%
+          ungroup() 
+
+# make visitNum_positive
+newdf2 <- as.tbl(new_df)
+ 
+newdf2$trt_char <- as.character(newdf2$treatment)
+# get treatment ORDER
+trts <- (sapply(unique(newdf2$beeID), FUN = function(x){
+  startt = newdf2[newdf2$beeID == x & newdf2$rewNum == 1, "trt_char" ]
+  return(as.character(startt))
+}))
+
+df4 <- data.frame(beeID = unique(newdf2$beeID), trts = trts)
+
+newdf3 <- merge(newdf2, df4)
+
+newdf3$trt2 <- as.factor(paste(newdf3$trts, "first"))
+
+# calculate mean IT span (for centering)
+IT_mean <- newdf3%>% 
+    group_by(beeID) %>% 
+    slice(1) %>%
+  ungroup() %>%
+  dplyr::select(IT) %>%
+  summarise(mean = mean(IT)) %>%
+  as.numeric()
+
+print(IT_mean)
+
+# add new variable 
+# that is the centered IT span
+newdf3 <- newdf3 %>% 
+  mutate(IT_centered = IT - IT_mean)
+
+```
+
+
+# Modeling frequency with GAMM
+# to look at non-linearities
+
+```{r}
+# visit number, treatment, IT span, colony, 
+# the interaction of visit number and treatment order, 
+# the interaction of treatment order and treatment, 
+# and the interaction of IT span and treatment.
+
+g00 = gamm4(freq ~
+              trt2 + # treatment order
+              treatment+   # treatment
+              IT_centered + 
+              hive + 
+              s(visitNum_positive, by = interaction(trt2, treatment)) +
+              trt2:treatment + 
+              treatment:IT_centered,
+              random =  ~(1|beeID), data = newdf3, 
+              REML = FALSE)
+
+par(mfrow = c(3,3))
+aab <- plot(g00$gam, all.terms = TRUE, rug = FALSE, shade = TRUE)
+summary(g00$gam) # Summary for paper 
+summary(g00$mer)
+dev.off()
+
+# remove smooth interaction
+g0 = gamm4(freq ~
+              trt2 + # treatment order
+              treatment +   # treatment
+              IT_centered + 
+              hive + 
+              s(visitNum_positive, by =  treatment) +
+              trt2:treatment + 
+              treatment:IT_centered,
+              random =  ~(1|beeID), data = newdf3, 
+              REML = FALSE)
+
+# start with gamm so I can show change by visit number
+par(mfrow = c(3,3))
+aab <- plot(g0$gam, all.terms = TRUE, rug = FALSE, shade = TRUE)
+summary(g0$gam) # Summary for paper 
+summary(g0$mer)
+dev.off()
+
+BIC(g00$mer, g0$mer) # keep g0
+
+g1 = gamm4(freq ~ 
+               trt2 + # treatment order
+               treatment + # treatment
+               IT_centered + 
+               hive + 
+               s(visitNum_positive, by = trt2) +
+               trt2:treatment + 
+               treatment:IT_centered,
+             random =  ~(1|beeID), data = newdf3, 
+             REML = FALSE)
+
+BIC(g0$mer, g1$mer) # keep g0 -- smooth by treatment order
+summary(g0$mer)$coef
+
+g2 = gamm4(freq ~ 
+               trt2 + # treatment order
+               treatment + # treatment
+               IT_centered + 
+               hive + 
+               s(visitNum_positive) + 
+               trt2:treatment + 
+               treatment:IT_centered,
+             random =  ~(1|beeID), data = newdf3, 
+             REML = FALSE)
+
+par(mfrow = c(3,3))
+aab <- plot(g2$gam, all.terms = TRUE, rug = FALSE, shade = TRUE)
+dev.off()
+
+BIC(g2$mer, g0$mer) # keep g2 -- no smooth by treatment order
+
+g3 = gamm4(freq ~ 
+               trt2 + # treatment order
+               treatment + # treatment
+               IT_centered + 
+               as.factor(hive) + 
+               visitNum_positive + 
+               trt2:treatment + 
+               treatment:IT_centered,
+             random =  ~(1|beeID), data = newdf3, 
+             REML = FALSE)
+
+par(mfrow = c(3,3))
+aab <- plot(g3$gam, all.terms = TRUE, rug = FALSE, shade = TRUE)
+dev.off()
+
+BIC(g2$mer, g3$mer) # keep g3 -- no smooth for visit number
+
+```
+
+# Modeling frequency with lmer
+
+```{r modeling1}
+# visit number, treatment, IT span, colony, 
+# the interaction of visit number and treatment order, 
+# the interaction of treatment order and treatment, 
+# and the interaction of IT span and treatment.
+
+
+# model with three-way interaction
+m00 <- lmer(freq ~
+              trt2 + # treatment order
+              treatment + # treatment
+              IT_centered + 
+              hive + 
+              visitNum_positive + 
+              # two-way interactions
+              treatment:IT_centered + 
+              visitNum_positive:treatment +
+              visitNum_positive:trt2 + 
+              trt2:treatment + 
+              # three way interaction
+              trt2:treatment:visitNum_positive + 
+              (1|beeID), data = newdf3, 
+              REML = FALSE)
+
+summary(m00)$coef
+
+m0 = update(m00, .~. - trt2:treatment:visitNum_positive)
+BIC(m0, m00) # keep m0 (no 3-way interaction)
+summary(m0)$coef
+
+m1 <- update(m0, .~. - trt2:visitNum_positive)
+BIC(m1, m0) # keep m1
+summary(m1)$coef
+
+m2 <- update(m1, .~. - treatment:visitNum_positive)
+BIC(m1, m2) # keep m2 
+summary(m2)$coef
+
+m3 <- update(m2, .~. - treatment:IT_centered)
+BIC(m2, m3) # keep m3
+summary(m3)$coef
+
+m4 <- update(m3, .~. - trt2:treatment)
+BIC(m3, m4) #keep m4
+summary(m4)$coef
+
+m5 <- update(m4, .~. - IT_centered)
+BIC(m4, m5) # keep m5
+summary(m5)$coef
+
+m6 <- update(m5, .~. - hive)
+BIC(m5, m6) # keep m6
+summary(m6)$coef
+
+m7 <- update(m6, .~. - trt2)
+BIC(m7, m6) # keep m7
+summary(m7)$coef
+
+m8 <- update(m7, .~. - visitNum_positive)
+BIC(m7, m8) # keep m8
+summary(m8)$coef
+
+m9 <- update(m8, .~. - treatment)
+BIC(m9, m8) # keep m9
+summary(m9)$coef
+
+#______________________________________________
+# Summarize frequency models for paper
+#______________________________________________
+
+# full frequency model
+fullmod_freq = update(m00, .~., REML = TRUE)
+summary(fullmod_freq)
+round(summary(fullmod_freq)$coef, digits = 3)
+# write.csv(data.frame(round(summary(fullmod_freq)$coef, digits = 3)), file = "coefs.csv")
+
+                      
+# small frequency model
+finmod_freq <- update(m9, .~., REML = TRUE)
+summary(finmod_freq) # final model for paper 
+
+# frequency model that has the same predictors as accel model
+matchingModel_freq =  lmer(freq ~ treatment + 
+                             IT_centered  + 
+                             treatment:IT_centered + 
+                              (1 | beeID), 
+                          data = newdf3, REML = TRUE)
+
+summary(matchingModel_freq)
+
+
+# no covariates predict frequency (when accounting for beeID)
+summary(finmod_freq) 
+plot(finmod_freq)
+qqnorm(ranef(finmod_freq)$beeID[[1]])
+qqline(ranef(finmod_freq)$beeID[[1]])
+```
+
+### Bootstrap CI's for figure for paper
+
+```{r bootstrap_frequency, cache = TRUE}
+# set number of bootstrap replicates for models
+nbootSims = 10000
+pframe_freq <- expand.grid(IT_centered  = seq(min(newdf3$IT_centered), 
+                                         max(newdf3$IT_centered), 
+                                         length.out = 50),
+                     treatment = levels(droplevels(newdf3$treatment)),
+                     beeID = 99999)
+pframe_freq$freq <- 0
+
+# re.form sets all random effects to 0
+pp <- predict(matchingModel_freq, 
+                  newdata = pframe_freq,
+                  re.form=NA, 
+                  type = 'response')
+
+
+### Calculate CI's (using bootstrap, not accounting for random effects)
+bb2 <- bootMer(matchingModel_freq, 
+               FUN=function(x) predict(x, 
+                                       pframe_freq, 
+                                       re.form=NA, 
+                                       type = 'response'),
+               nsim = nbootSims)
+print(paste("Number of bootstrap samples", nrow(bb2$t)))
+bb2_se <-apply(bb2$t,2,function(x) quantile(x, probs = c(0.025, 0.975)))
+pframe_freq$blo<- (bb2_se[1,]) 
+pframe_freq$bhi<- (bb2_se[2,])
+pframe_freq$predMean <- pp
+```
+
+```{r}
+# change "weighted" to "increased-mass"
+pframe_freq$treatment <- mapvalues(pframe_freq$treatment, from = c("Sham", "Weighted"), 
+                          to = c("Sham", "Increased mass"))
+# plot freq vs. IT
+# note: we add IT_mean to IT_centered to show IT on original scale
+Freq_IT <- ggplot(pframe_freq, aes(x= IT_centered + IT_mean, y=predMean))+
+              geom_ribbon(aes(x = IT_centered + IT_mean, ymin = blo, 
+                              ymax = bhi, fill = treatment), alpha = 0.2) + 
+              geom_line(aes(color = treatment), alpha = 1) + 
+              labs(y =  expression ("Sonication frequency "(Hz)), x = "Intertegular span (mm)") + 
+              scale_color_viridis_d(name = "Flower treatment", begin =0.3, end = 0.8) + 
+              scale_fill_viridis_d(name = "Flower treatment", begin =0.3, end = 0.8) + 
+              theme(legend.position = "top", 
+                    legend.background = element_rect(fill=alpha('gray95', 1)), 
+                    legend.direction="horizontal") 
+Freq_IT
+
+# make plot with rug
+weight_rug_freq <- Freq_IT + 
+  geom_rug(data = newdf3[!duplicated(newdf3$IT),], 
+           inherit.aes = FALSE, aes(x = IT))
+  
+Fig2a <- weight_rug_freq
+
+# show figure
+Fig2a
+```
+
+---
+
+# Amplitude analysis
+
+---
+
+
+# Modeling amplitude with GAMM to look at non-linearities
+
+```{r modeling-amp1}
+# visit number, treatment, IT span, colony, 
+# the interaction of visit number and treatment order, 
+# the interaction of treatment order and treatment, 
+# and the interaction of IT span and treatment.
+# GAMM
+g00 = gamm4(log(amp_acc)~
+              trt2 + # treatment order
+              treatment+   # treatment
+              IT_centered + 
+              hive + 
+              s(visitNum_positive, by = interaction(trt2, treatment)) +
+              trt2:treatment + 
+              treatment:IT_centered,
+              random =  ~(1|beeID), data = newdf3, 
+              REML = FALSE)
+
+par(mfrow = c(3,3))
+aab <- plot(g00$gam, all.terms = TRUE, rug = FALSE, shade = TRUE)
+summary(g00$gam) # Summary for paper 
+summary(g00$mer)
+dev.off()
+
+
+# remove smooth interaction
+g0 = gamm4(log(amp_acc) ~
+              trt2 + # treatment order
+              treatment +   # treatment
+              IT_centered + 
+              hive + 
+              s(visitNum_positive, by =  treatment) +
+              trt2:treatment + 
+              treatment:IT_centered,
+              random =  ~(1|beeID), data = newdf3, 
+              REML = FALSE)
+
+par(mfrow = c(3,3))
+aab <- plot(g0$gam, all.terms = TRUE, rug = FALSE, shade = TRUE)
+summary(g0$gam) 
+summary(g0$mer)
+dev.off()
+
+BIC(g00$mer, g0$mer) # keep g0
+
+g1 = gamm4(log(amp_acc) ~ 
+               trt2 + # treatment order
+               treatment + # treatment
+               IT_centered + 
+               hive + 
+               s(visitNum_positive, by = trt2) +
+               trt2:treatment + 
+               treatment:IT_centered,
+             random =  ~(1|beeID), data = newdf3, 
+             REML = FALSE)
+
+BIC(g0$mer, g1$mer) # keep g0 -- smooth by treatment order
+summary(g0$mer)$coef
+
+g2 = gamm4(log(amp_acc) ~ 
+               trt2 + # treatment order
+               treatment + # treatment
+               IT_centered + 
+               hive + 
+               s(visitNum_positive) + 
+               trt2:treatment + 
+               treatment:IT_centered,
+             random =  ~(1|beeID), data = newdf3, 
+             REML = FALSE)
+
+par(mfrow = c(3,3))
+aab <- plot(g2$gam, all.terms = TRUE, rug = FALSE, shade = TRUE)
+dev.off()
+
+BIC(g2$mer, g0$mer) # keep g2 -- no smooth by treatment order
+
+g3 = gamm4(log(amp_acc) ~ 
+               trt2 + # treatment order
+               treatment + # treatment
+               IT_centered + 
+               as.factor(hive) + 
+               visitNum_positive + 
+               trt2:treatment + 
+               treatment:IT_centered,
+             random =  ~(1|beeID), data = newdf3, 
+             REML = FALSE)
+
+par(mfrow = c(3,3))
+aab <- plot(g3$gam, all.terms = TRUE, rug = FALSE, shade = TRUE)
+dev.off()
+
+BIC(g2$mer, g3$mer) # keep g3 -- no smooth for visit number
+
+```
+
+# Modeling amplitude with lmer
+
+```{r modeling-amp3}
+# visit number, treatment, IT span, colony, 
+# the interaction of visit number and treatment order, 
+# the interaction of treatment order and treatment, 
+# and the interaction of IT span and treatment.
+
+m00 <- lmer(log(amp_acc) ~
+              trt2 + # treatment order
+              treatment + # treatment
+              IT_centered + 
+              hive + 
+              visitNum_positive + 
+              # two-way interactions
+              treatment:IT_centered + 
+              visitNum_positive:treatment +
+              visitNum_positive:trt2 + 
+              trt2:treatment + 
+              # three way interaction
+              trt2:treatment:visitNum_positive + 
+              (1|beeID), data = newdf3, 
+              REML = FALSE)
+
+summary(m00)$coef
+
+ma0 = update(m00, .~. - trt2:treatment:visitNum_positive)
+BIC(m00, ma0) # keep ma0 (no 3-way interaction)
+summary(ma0)$coef
+
+ma1 = update(ma0, .~. - trt2:visitNum_positive)
+BIC(ma0, ma1) # keep ma1
+summary(ma1)$coef
+
+ma2 <- update(ma1, .~. - treatment:visitNum_positive)
+BIC(ma1, ma2) # keep ma2
+summary(ma2)$coef
+
+ma3 <- update(ma2, .~. - trt2:treatment)
+BIC(ma2, ma3) # keep ma3
+summary(ma3)$coef
+
+ma4 <- update(ma3, .~. - treatment:IT_centered)
+BIC(ma3, ma4) # keep ma3
+summary(ma3)$coef
+
+ma5 <- update(ma3, .~. - trt2 )
+BIC(ma3, ma5) #keep ma5
+summary(ma5)$coef
+
+ 
+ma6 <- update(ma5, .~. - hive)
+BIC(ma5, ma6) #keep ma5
+summary(ma6)$coef
+
+ma7 <- update(ma6, .~. -visitNum_positive)
+BIC(ma7, ma6) #keep ma7
+summary(ma7)$coef
+
+#______________________________________________
+# Summarize acceleration models for paper
+#______________________________________________
+fullMod_accel = update(m00, .~., REML = TRUE)
+summary(fullMod_accel) # summary of full model for paper
+
+finmod_accel <- update(ma7, .~., REML = TRUE)
+summary(finmod_accel)
+# write.csv(data.frame(round(summary(fullMod_accel)$coef, digits = 3)), file = "coefs.csv")
+
+
+
+# diagnostics
+plot(finmod_accel)
+qqnorm(ranef(finmod_accel)$beeID[[1]])
+qqline(ranef(finmod_accel)$beeID[[1]])
+```
+
+
+### Predict amplitudes with some specific values
+```{r}
+
+summary(finmod_accel)$coef
+pframe_accel0 <- expand.grid(IT_centered  = c(-1, 0, 1),
+                     treatment = levels(droplevels(newdf3$treatment)),
+                     beeID = 99999)
+
+# exponentiate to put on original scale
+# re.form sets all random effects to 0
+pframe_accel0$preds <- predict(finmod_accel, 
+                  newdata = pframe_accel0,
+                  re.form=NA, 
+                  type = 'response')
+
+pframe_accel0 %>% 
+  mutate(exp_preds = exp(preds)) %>%
+  filter(IT_centered == 0)
+exp(-0.28384542) * 17.37514
+
+pframe_accel0 %>% 
+  mutate(exp_preds = exp(preds)) %>%
+  filter(IT_centered == -1)
+exp(-0.28384542 + -1*0.33293768) * 16.420227
+
+pframe_accel0 %>% 
+  mutate(exp_preds = exp(preds)) %>%
+  filter(IT_centered == 1)
+exp(-0.28384542 + 1*0.33293768) * 18.38559
+
+
+```
+
+
+
+### Bootstrap CI's for amplitude for figure for paper
+
+```{r bootstrap_amp2, cache = TRUE}
+pframe_accel <- expand.grid(IT_centered  = seq(min(newdf3$IT_centered), 
+                                         max(newdf3$IT_centered), 
+                                         length.out = 50),
+                     treatment = levels(droplevels(newdf3$treatment)),
+                     beeID = 99999)
+pframe_accel$amp_acc <- 0
+
+# exponentiate to put on original scale
+# re.form sets all random effects to 0
+pp <- exp(predict(finmod_accel, 
+                  newdata = pframe_accel,
+                  re.form=NA, 
+                  type = 'response')) 
+
+
+### Calculate CI's (using bootstrap, not accounting for random effects)
+bb2 <- bootMer(finmod_accel, 
+               FUN=function(x) predict(x, 
+                                       pframe_accel, 
+                                       re.form=NA, 
+                                       type = 'response'),
+               nsim = nbootSims)
+print(paste("Number of bootstrap samples", nrow(bb2$t)))
+bb2_se <-apply(bb2$t,2,function(x) quantile(x, probs = c(0.025, 0.975)))
+pframe_accel$blo<- exp(bb2_se[1,]) # exponentiate to put on original scale
+pframe_accel$bhi<- exp(bb2_se[2,])
+pframe_accel$predMean <- pp
+```
+
+
+```{r}
+# change "weighted" to "increased-mass"
+pframe_accel$treatment <- mapvalues(pframe_accel$treatment, from = c("Sham", "Weighted"), 
+                          to = c("Sham", "Increased mass"))
+# plot amplitude vs. IT
+# note: we add IT_mean to IT_centered to show IT on original scale
+g0IT <- ggplot(pframe_accel, aes(x= IT_centered + IT_mean, y=predMean))+
+          geom_ribbon(aes(x = IT_centered + IT_mean, ymin = blo, 
+                          ymax = bhi, fill = treatment), alpha = 0.2) + 
+          geom_line(aes(color = treatment), alpha = 1) + 
+          labs(y = expression ("Sonication acceleration "(m~s^{-2})), 
+               x = "Intertegular span (mm)") +
+          scale_color_viridis_d(name = "Flower treatment", begin =0.3, end = 0.8) + 
+          scale_fill_viridis_d(name = "Flower treatment", begin =0.3, end = 0.8) + 
+          theme(legend.position = "top", 
+            legend.background = element_rect(fill=alpha('gray95', 1)), 
+            legend.direction="horizontal") 
+g0IT
+
+# make plot with rug
+weight_rug <- g0IT + 
+  geom_rug(data = newdf3[!duplicated(newdf3$IT),], 
+           inherit.aes = FALSE, aes(x = IT))
+  
+Fig2b <- weight_rug
+
+# show figure
+Fig2b
+```
+
+
+
+### Put two plots into a single figure
+
+```{r}
+# set ggplot theme
+theme_set(theme_classic() + 
+            theme(axis.text=element_text(colour="black"), 
+                  text=element_text(size=10)))
+
+pfreq <- Fig2a + 
+  theme(legend.position = c(0.5,0.89), 
+        legend.direction = "vertical", 
+        #plot.margin = margin(c(0.2,0.0, 0.2, 0.2), unit = "cm"), 
+        legend.title = element_text(size = 10), 
+        legend.text = element_text(size = 8), 
+        plot.background = element_rect(fill = "transparent",colour = NA), 
+        panel.background = element_rect(fill = "transparent",colour = NA), 
+        legend.background = element_rect(fill="transparent", colour = NA),
+        strip.background = element_blank(),
+        panel.spacing.x = unit(1, "lines")) +
+  ylim(c(310, 390))
+
+pamp <- Fig2b + 
+        theme(legend.position = "none", 
+              #plot.margin = margin(c(2,0.2, 0.2, 0.2), unit = "cm"), 
+              plot.background = element_rect(fill = "transparent",colour = NA), 
+              panel.background = element_rect(fill = "transparent",colour = NA), 
+              legend.background = element_rect(fill="transparent", colour = NA),
+              panel.spacing.x = unit(1, "lines"))
+
+  
+
+aa <- plot_grid(pfreq, pamp, align = 'h', axis = 'l', rel_widths = c(1,1))
+
+ggdraw(aa)
+
+
+save_plot(file.path(figDir, "003_HeavyLight.tiff"), 
+          plot = aa, base_width = 6.5, base_height = 3, dpi = 500)
+
+save_plot(file.path(figDir, "003_HeavyLight_lowRes.png"), 
+          plot = aa, base_width = 6.5, base_height = 3, dpi = 150)
+```
+
+
+# Make plots of time vs. performance (raw data)
+```{r}
+# make visitNum centered
+
+newdf4 <- newdf3 %>%
+          arrange(beeID, desc(datetime)) %>%
+          group_by(Folder, treatment) %>%
+  # make visit number for each treatment
+          mutate(visitNum_neg = -seq(n())) %>%
+          mutate(visitNum_centered= ifelse((treatment == "Weighted" & trt2 == "Weighted first") | 
+                                             (treatment == "Sham" & trt2 == "Sham first"), yes = visitNum_neg, no =  visitNum_positive)) %>%
+          ungroup() %>%
+  arrange(beeID, datetime)
+  
+
+
+newdf4$treatment_I <- mapvalues(newdf3$treatment, from = c("Sham", "Weighted"), 
+                          to = c("Sham", "Increased mass"))
+
+newdf4$`Treatment Order` <- mapvalues(newdf3$trt2, from = c("Sham first", "Weighted first"), 
+                          to = c("Sham first", "Increased mass first"))
+
+
+timePlot_freq <- ggplot(newdf4, aes(x = visitNum_centered, y = freq)) + 
+  geom_point(alpha = 0.3, position = position_jitter(width = 0, height = 4), 
+             stroke = 0, size = 1, aes(color = treatment_I)) + 
+  geom_line(stat="smooth",method = "loess",aes(color = treatment_I),
+              size = 1.2, span = 0.9,
+              alpha = 0.7, show.legend = FALSE)+
+  facet_wrap(~`Treatment Order`, labeller = label_both) + 
+  theme(legend.position = "top", 
+        panel.background = element_rect(fill = "transparent",colour = NA), 
+        legend.direction = "horizontal"
+        ) +  
+  geom_vline(aes(xintercept = 0), lty = 2) + 
+  xlim(c(-50, 50)) + 
+  labs(y = expression ("Sonication frequency  "(Hz)), 
+               x = "Visit Number, centered") + 
+   scale_color_viridis_d(name = "Treatment", begin =0.3, end = 0.8, 
+                        guide = guide_legend(override.aes = list(alpha = 1, size = 2)))
+timePlot_freq
+
+timePlot_merge = timePlot_freq + 
+  theme(strip.background = element_rect(color = "black"), 
+                               strip.text.x = element_text(margin = margin(0.2,0,0.2,0, "cm")), 
+                               axis.text.x=element_blank(), 
+                               axis.ticks.x=element_blank())
+
+
+
+timePlot_acc <- ggplot(newdf4, aes(x = visitNum_centered, y = amp_acc)) + 
+  geom_point(alpha = 0.3, stroke = 0, size = 1, aes(color = treatment_I)) + 
+  geom_line(stat="smooth",method = "loess",aes(color = treatment_I),
+                size = 1.2, span = 0.9,
+                alpha = 0.7, show.legend = FALSE)+
+  xlim(c(-50, 50)) + 
+  scale_y_log10() + 
+  facet_wrap(~`Treatment Order`, labeller = label_both) + 
+  theme(panel.background = element_rect(fill = "transparent",colour = NA), 
+        legend.position = "none", 
+        legend.direction = "horizontal"
+        ) + 
+  geom_vline(aes(xintercept = 0), lty = 2) + 
+  labs(y = expression ("Sonication acceleration  "(m~s^{-2})), 
+               x = "Visit Number, centered") + 
+  scale_color_viridis_d(name = "Treatment", begin =0.3, end = 0.8, 
+                        guide = guide_legend(override.aes = list(alpha = 1, size = 2)))
+
+timePlot_acc
+
+
+ab <- plot_grid(timePlot_merge + labs(x = ""), 
+                timePlot_acc + theme(strip.background = element_blank(),
+                                     strip.text.x = element_blank()), 
+                align = 'h', axis = 'l', rel_widths = c(1,1), nrow = 2, 
+                rel_heights = c(1.3, 1))
+
+ggdraw(ab)
+
+
+save_plot(file.path(figDir, "TimePlots_HeavyLight.tiff"), 
+          plot = ab, base_width = 6.5, base_height = 5, dpi = 500)
+
+save_plot(file.path(figDir, "TimePlots_HeavyLight_lowRes.png"), 
+          plot = ab, base_width = 6.5, base_height = 5, dpi = 200)
+
+
+
+```
+
+
+
+```{r}
+sessionInfo()
+````
+

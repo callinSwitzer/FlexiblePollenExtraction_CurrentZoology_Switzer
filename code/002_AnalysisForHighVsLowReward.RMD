@@ -1,0 +1,708 @@
+---
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+
+<pre>
+## Callin Switzer
+## Analysis of bee intrumental learning hypothesis experiment
+### i.e. Can bees learn to sonicate at low or high frequencies?
+
+## Initial commit: 17 Nov 2017
+## Updated 15 Dec, cleaned code for submission
+## Update 14 Jan 2019 prepped for depositing in zenodo
+</pre>
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+```
+
+```{r, warning = FALSE, message=FALSE}
+#install packages
+ipak <- function(pkg){
+     new.pkg <- pkg[!(pkg %in% installed.packages()[, "Package"])]
+     if(length(new.pkg)) install.packages(new.pkg, dependencies = TRUE)
+     sapply(pkg, require, character.only = TRUE)
+}
+
+packages <- c("plyr", "tidyverse", 'lme4', 'sjPlot', 
+              "multcomp", "cowplot")
+ipak(packages)
+
+# set ggplot theme
+theme_set(theme_classic() + 
+            theme(axis.text=element_text(colour="black"), 
+                  text=element_text(size=10)))
+
+# set  directories
+dataDir <- file.path(getwd(), "data")
+figDir <- file.path(getwd(), "figures")
+
+print(paste("last run ", Sys.time()))
+print(R.version)
+```
+
+# Read in data and tidy
+
+```{r, message=FALSE}
+# read in data
+sl <- read_csv(file.path(dataDir, '01_CombinedTrials_cleaned.csv'))
+
+# clean data
+sl <- sl %>%
+  # gets rid of the copious warnings
+  mutate(timeSinceStart = NA, 
+         timeSinceLastBuzz = NA, 
+         buzzesSinceReward = NA) %>%
+  
+  # make sure all bee colors are lowercase
+  mutate(beeCol =  tolower(beeCol)) %>%
+  
+  # fix orange.5, which should be orange.3
+  mutate(hive = ifelse(hive == "5" & beeCol == "orange", "3", hive)) %>%
+  
+  # color + hive is an ID var 
+  mutate(beeColHive = interaction(beeCol, hive), 
+         colNum = paste(beeCol, hive, sep = "_")) %>%
+  
+  # fix IT for orange.3
+  mutate(IT = replace(IT, beeColHive == "orange.3", 3.99)) %>%
+  
+  # remove two trials that contain errors
+  filter(!(beeCol == "whitepink" & trialNum == 3)) %>%
+  filter(!(beeCol == "limepurple" & trialNum == 3)) %>%
+  
+
+  # convert hive to factor
+  mutate(hive = as.factor(hive),
+         trt2  = ifelse(trt == 'full' & trialNum > 1, 
+                        "full_2", as.character(trt)), 
+         trt = relevel(factor(trt), ref = "full")) %>%
+  
+  # divide amplitud by 2
+  mutate(amp_acc2 = amp_acc / 2) %>%
+  mutate(trialNum0 = trialNum - 1)
+
+
+
+# calculate mean IT span (for centering)
+IT_mean <- sl %>% 
+    group_by(beeColHive) %>% 
+    slice(1) %>%
+  ungroup() %>%
+  dplyr::select(IT_imputed) %>%
+  summarise(mean = mean(IT_imputed)) %>%
+  as.numeric()
+
+# print overall mean of IT span
+print(IT_mean)
+
+# add new variable 
+# that is the centered IT span
+sl <- sl %>% 
+  mutate(IT_centered = IT_imputed - IT_mean)
+
+```
+
+
+# Calculate more descriptive stats 
+# and make supplementary fig for paper
+
+```{r}
+# std dev for rewards by treatment
+s2 = sl %>%
+  mutate(beeColHive = interaction(beeCol, hive), 
+         reward= grepl(pattern = "t", x = .$rewTF, ignore.case = TRUE)*1) 
+
+
+s3 = s2 %>%
+  group_by(beeColHive, trt2) %>%
+  dplyr::summarize(mean_reward = mean(reward)) %>%
+  group_by(trt2) %>%
+  dplyr::arrange(desc(trt2)) 
+
+# summary for paper
+s3 %>%
+  dplyr::summarize( mean_ = mean(mean_reward), 
+                    reward_sd = sd(mean_reward), n = n()) %>%
+  mutate(se = reward_sd / sqrt(n))
+
+
+# total number of trials for each treatment
+tapply((grepl("[tT]", as.character(sl$rewTF))), INDEX= sl$trt, length)
+
+# total number of rewards per treatment
+tapply((grepl("[tT]", as.character(sl$rewTF))), 
+       INDEX= sl$trt, FUN = function(x) sum(x))
+
+# total number of trials that were unrewarded per treatment
+tapply((grepl("[tT]", as.character(sl$rewTF))), 
+       INDEX= sl$trt, FUN = function(x) sum(!x))
+
+
+# calculate avg freq & SE
+se <- function(x) {
+  sd(x) /  sqrt(length(x))
+}
+
+
+s4 = s2 %>%
+  group_by(beeColHive, trt2) %>%
+  dplyr::summarize(mean_freq = mean(freq), 
+                   sd_freq = sd(freq)) %>%
+  group_by(trt2) %>%
+  dplyr::arrange(desc(trt2)) %>%
+  filter(trt2 != "full") %>%
+  ungroup() %>%
+  mutate(trt3 = plyr::mapvalues(.$trt2, from = c("full_2", "high", "low"), 
+                        to = c("Full range\n(220 - 450 Hz)", 
+                               "High range\n(340 - 390 Hz)", 
+                               "Low range\n(220 - 330 Hz)")))
+
+
+# plot bee size in the groups
+sl_sum <- sl %>%
+  dplyr::select(beeColHive, trt2, IT_imputed) %>%
+  distinct(beeColHive, trt2, .keep_all = TRUE) 
+
+sl_sum %>%
+  group_by(trt2) %>%
+  summarize(counts = n())
+
+sl %>% nrow
+
+sl %>% group_by(beeColHive) %>%
+  summarize(n()) %>%
+  nrow()
+
+sl %>% group_by(trt2) %>%
+  summarize(count= n())
+
+s2 <- sl_sum  %>%
+  filter(trt2 != "full") %>%
+  mutate(trt3 = plyr::mapvalues(.$trt2, from = c("full_2", "high", "low"), 
+                        to = c("Full range\n(220 - 450 Hz)", 
+                               "High range\n(340 - 390 Hz)", 
+                               "Low range\n(220 - 330 Hz)")))
+# join data  for plotting
+s44 <- full_join(s2, s4)
+
+set.seed(123)
+ggplot(s44, aes(x = trt3,  y= IT_imputed)) + 
+  geom_violin(width = 0.5, fill = "grey90", color = NA, bw = 0.2, trim = TRUE) + 
+  #geom_boxplot(width = 0.5, outlier.alpha =   0) + 
+  geom_point(position = position_jitter(height = 0, width = 0.05), 
+             stroke= 0, size = 2.5, color = 'grey40') + 
+  labs(x = "Frequency range for reward", y = "Intertegular span (mm)") 
+
+
+# supplementary figure for paper
+ggsave(file.path(figDir, "beeSize_exp1.tiff"), 
+       width = 6, height = 4, units = "in", dpi = 500)
+```
+
+# Plot frequency vs. acceleration
+
+```{r}
+# plot freq vs. amp
+sl <- sl %>%
+  mutate(`IT interval (mm)` = cut_interval(IT_imputed, n = 3))
+
+ggp <- ggplot(sl[sl$trt2 == "full", ], aes(x = freq, y = amp_acc2)) + 
+  geom_point(position = position_jitter(height = 0, width = 2), 
+             alpha = 0.3, stroke = 0, size = 1.5) + 
+  stat_smooth(method = 'loess', span = 1, color = 'grey40', se = FALSE, 
+              lwd = 1.3) + 
+  facet_wrap(~`IT interval (mm)`, labeller = "label_both") + 
+  theme(strip.background = element_blank(), 
+        strip.text = element_text(size = 10)) + 
+  theme(legend.position = "none", 
+        plot.margin = unit(c(1,1,1,1)/2, "cm")) + 
+  labs(x = "Sonication frequency (Hz)", 
+       y = expression ("Sonication acceleration "(m~s^{-2})))
+
+ggp
+
+# supplementary figure for paper
+ggsave(file.path(figDir, "freq_amp.tiff"), width = 6.5, 
+       height = 3, units = "in", dpi = 500)
+```
+
+
+# Statistical models for frequency
+
+```{r}
+# start with large model
+# fixed effects: treatment (rewarded at high, low, or full range of frequencies), 
+# IT span, colony, trial number, and the interaction of treatment and IT span.
+# We included a random intercept of bee ID and added a random slope of trial number 
+# within bee ID. We allowed for correlation between bee ID and trial number. 
+
+mFull = lmer(freq ~ trt + IT_centered + hive + trialNum + 
+            trt:IT_centered + (1+trialNum|beeColHive), 
+          data = sl, REML = FALSE)
+summary(mFull)
+
+m1 = update(mFull, .~. - IT_centered:trt)
+BIC(m1, mFull) # keep m1 (without IT_imputed:trt)
+summary(m1)$coef
+
+m2 <- update(m1, .~. - hive)
+BIC(m1, m2) # keep m2 (without hive)
+summary(m2)$coef
+
+m3 <- update(m2, .~. - IT_centered)
+BIC(m2, m3) # keep m2 (leave IT in model)
+
+m4 <- update(m2, .~. - trt)
+BIC(m2, m4) # keep (m2) trt
+
+
+# refit best model with REML = TRUE
+m_Final <- update(m2, .~., REML = TRUE)
+summary(m_Final) # summary for paper
+
+# show full model for paper
+fullMod_freq <- update(mFull, .~., REML = TRUE)
+summary(fullMod_freq)
+
+
+# m_Final diagnostics
+plot(m_Final)
+qqnorm(ranef(m_Final)$beeColHive[[1]])
+qqline(ranef(m_Final)$beeColHive[[1]])
+
+## bonf adjusted pvals for paper
+summary(glht(m_Final, linfct = mcp(trt = "Tukey")), 
+        test = adjusted("bonf"))
+
+
+# ________________________________________
+# refit model for bootstrap,
+# without centered IT Span
+# ________________________________________
+
+m3 <- lmer(freq ~ trt + IT_imputed + trialNum +
+                   (1 + trialNum|beeColHive), 
+                REML = TRUE, 
+                data = sl)
+
+```
+
+### Predict some values with frequency model
+
+```{r}
+# generate data frame for predictions
+pframe0 <- data.frame(expand.grid(trt = levels(sl$trt), 
+                                 IT_centered = c(-1, 
+                                                  0, 
+                                                1),  
+                                 beeColHive  = 99999, 
+                                 trialNum = 2, 
+                                 freq = 0))
+
+pframe0$preds <- predict(m_Final, newdata = pframe0, re.form=NA, type = 'response')
+
+pframe0 %>%
+  filter(IT_centered == 0)
+
+
+
+pframe0 %>%
+  filter(trt == "full")
+```
+
+
+# Generate Bootstrap CI's for frequency
+```{r bootstrap, cache = TRUE}
+# set number of bootstrap samples
+nbootSims = 10000
+
+# generate data frame for predictions
+pframe <- data.frame(expand.grid(trt = levels(sl$trt), 
+                                 IT_imputed = seq(min(s2$IT_imputed), 
+                                                  max(s2$IT_imputed), 
+                                                  length.out = 50),  
+                                 beeColHive  = 99999, 
+                                 trialNum = 2, 
+                                 freq = 0))
+
+pp <- predict(m3, newdata = pframe, re.form=NA, type = 'response') 
+
+
+### Calculate CI's (using bootstrap, not accounting for random effects)
+system.time({
+  bb2 <- bootMer(m3, FUN=function(x){predict(x, 
+                                             pframe, 
+                                             re.form=NA, 
+                                             type = 'response')}, 
+                 nsim = nbootSims)
+})
+
+print(paste("Number of bootstrap samples", nrow(bb2$t)))
+
+# calculate quantiles
+bb2_se <-apply(bb2$t,2,function(x) quantile(x, probs = c(0.025, 0.975)))
+pframe$blo<-bb2_se[1,]
+pframe$bhi<-bb2_se[2,]
+pframe$predMean <- pp
+pframe <- pframe[, c('trt',"IT_imputed", "blo", "bhi", "predMean")]
+```
+
+# Make frequency plot for paper
+
+```{r}
+# rename labels for plot
+pframe$trt3 = plyr::mapvalues(pframe$trt, from = c("full", "high", "low"), 
+                        to = c("Full range\n(220 - 450 Hz)", 
+                               "High range\n(340 - 390 Hz)",
+                               "Low range\n(220 - 330 Hz)"))
+set.seed(1234)
+g1 <- ggplot(pframe, aes(x=IT_imputed, y=predMean, color = trt3, fill = trt3))+
+        labs(y = "Sonication frequency (Hz)", x = "Intertegular span (mm)") + 
+        geom_ribbon(aes(ymin = blo, ymax = bhi), alpha = 0.2, color = NA)+
+
+        geom_line()+
+        theme(plot.background = element_rect(fill = "transparent",colour = NA), 
+            panel.background = element_rect(fill = "transparent",colour = NA), 
+            legend.position =c(0.8, 0.8), 
+            legend.background = element_rect(fill="transparent", colour = NA),
+            strip.background = element_blank(),
+            legend.title = element_text(size = 8),
+            panel.spacing.x = unit(1, "lines"), 
+           plot.margin = margin(c(0.2,0.51, 0.2, 0.2), unit = "cm")) +
+        #scale_x_continuous(breaks = seq(3.4, 4.8, by = 0.5)) +
+        scale_color_viridis_d(name = "Frequency range\nfor reward", 
+                              end = 0.7, option = "inferno") + 
+        scale_fill_viridis_d(name = "Frequency range\nfor reward", 
+                             end =0.7, option = 'inferno')
+g1
+```
+
+
+# Visualization of frequency over time
+
+```{r, cache = TRUE}
+st <- sl %>%
+# gets rid of the copious warnings
+  mutate(timeSinceStart = NA, timeSinceLastBuzz = NA, buzzesSinceReward = NA) %>%
+  mutate(beeColHive = interaction(beeCol, hive)) %>%
+  # remove two trials I messed up
+  filter(!(beeCol == "whitepink" & trialNum == 3)) %>%
+  filter(!(beeCol == "limepurple" & trialNum == 3)) %>%
+  mutate(t5 = recode(.$trt, "full" = "Full range\n(220 - 450 Hz)", 
+                       "high" = "High range\n(340 - 390 Hz)\nsecond trial", 
+                       "low" = "Low range\n(220 - 330 Hz)\nsecond trial")) %>%
+  mutate(t6 = t5, 
+         t6 = ifelse(.$trt == 'full' & .$trialNum == 1, 
+                     "Full range \n(220 - 450 Hz)\nfirst trial", t5), 
+         t6 = ifelse(.$trt == 'full' & .$trialNum > 1, 
+                     "Full range \n(220 - 450 Hz)\nsecond trial", t6)
+         ) %>%
+  filter(trialNum <= 10 & trialNum > 1) 
+
+fta <- sl %>% 
+  filter(trialNum == 1) %>% 
+  dplyr::group_by(beeColHive) %>%
+  dplyr::summarise(initialFreq = mean(freq)) %>%
+  full_join(sl) %>%
+  mutate(freqDiff = freq- initialFreq) %>%
+  filter(beeColHive %in% .$beeColHive[.$trialNum > 1]) %>%
+  dplyr::arrange(trt) 
+
+cc <- fta %>%
+  ungroup() %>%
+  filter(trialNum > 1) %>%
+  group_by(beeColHive) %>%
+  dplyr::summarize(meanFreq = mean(freq))
+
+
+
+bb <- fta %>%
+  dplyr::select(beeColHive, trt, trialNum, initialFreq) %>%
+  dplyr::filter(trialNum == 2 | trialNum == 3) %>%
+  group_by(beeColHive) %>%
+  slice(1:1) %>%
+  full_join(cc) %>%
+  mutate(freqDiff = initialFreq - meanFreq) %>%
+  dplyr::arrange(trt, desc(freqDiff))
+
+fta <- fta %>%
+  mutate(beeColHive = factor(beeColHive, levels = bb$beeColHive)) %>% 
+  mutate(t5 = recode(.$trt, "full" = "Full range\n(220 - 450 Hz)", 
+                       "high" = "High range\n(340 - 390 Hz)", 
+                       "low" = "Low range\n(220 - 330 Hz)")) %>%
+  filter(trialNum <= 10)
+
+s44 = fta %>%
+  group_by(trialNum, beeColHive, t5) %>%
+  dplyr::summarise(meanFreq2 = mean(freq))
+s44
+
+# plot to show trials
+ggplot(fta, aes(x = trialNum, y = freq, color = t5)) + 
+  geom_ribbon(data = fta[fta$trialNum > 1,], 
+              aes(x = rep(seq(1.5, 12, 3),  
+                          length.out = nrow(fta[fta$trialNum > 1,])), 
+                  ymin = lowFrq, ymax = highFrq), alpha = 0.2, color = NA) + 
+  geom_point(position = position_jitter(width = 0, height = 10), 
+             alpha= 0.2, stroke = 0, aes( shape = t5 )) + 
+  facet_wrap(~beeColHive, ncol = 8) +
+  geom_line(data = s44, aes(x = trialNum, y = meanFreq2), color = 'black', 
+            lwd = 0.8, show.legend = FALSE) + 
+  geom_line(data = s44, aes(x = trialNum, y = meanFreq2), color = 'black', 
+            lwd = 0.8, show.legend = FALSE) + 
+  geom_point(data = s44, aes(x = trialNum, y = meanFreq2), 
+             color = 'black', pch = 18, show.legend = FALSE) + 
+  geom_ribbon(data = fta[fta$trialNum > 1,], 
+              aes(x = rep(seq(0.5, 1.5, 1),  
+                          length.out = nrow(fta[fta$trialNum > 1,])), 
+                  ymin = 220, ymax = 450), alpha = 0.2, color = NA) + 
+  scale_x_continuous(breaks = seq(0, 10, 2)) + 
+  scale_color_viridis_d(name = "",
+                        option = "magma", begin = 0.3,
+                        end = 0.80, 
+                        guide = guide_legend(override.aes = 
+                                               list(alpha = 1, size = 4))) + 
+  theme_classic() + 
+  theme(strip.background = element_blank(), 
+        strip.text = element_blank(), 
+        panel.border = element_rect(colour = "grey40", 
+                                    fill=NA, size=0.5), 
+        legend.position = 'top') + 
+  scale_shape_manual(name = "", values = c(16,17,15)) + 
+   
+  labs(y = "Frequency (Hz)", x = "Trial Number")
+
+# supplementary figure for paper
+ggsave(filename = file.path(figDir,"freqLearningCurve.tiff"),
+       dpi = 500,  width = 6.5*1.5, height = 4*1.5, units = "in")
+```
+
+# Compare frequency analysis when 2 bees without IT are missing
+```{r}
+summary(m3)$coef
+missing_m3 <- update(m3, .~. - IT, data = sl[!is.na(sl$IT),])
+
+summary(missing_m3)$coef
+```
+
+___
+
+# Statistical analysis for acceleration
+
+```{r ampAnalysis}
+# show heteroskedasticity
+maa0 = lmer(amp_acc2 ~ trt* IT_centered + hive + trialNum  
+            + (1+trialNum|beeColHive), data = sl, REML = FALSE)
+plot(maa0)
+
+
+# note log-transformation to make model fit assumptions better
+maa0 = lmer(log(amp_acc2) ~ trt* IT_centered + hive + trialNum  
+            + (1+trialNum|beeColHive), data = sl, REML = FALSE)
+plot(maa0)
+
+# main effect model
+maa1 = update(maa0, .~. - trt:IT_centered)
+BIC(maa0, maa1) # use no interaction (keep maa1)
+
+maa2 = update(maa1, .~. - trt)
+BIC(maa1, maa2) # keep treatment (maa1)
+
+maa3 <- update(maa1, .~. - hive)
+BIC(maa1, maa3) # remove hive (maa3)
+
+maa4 <- update(maa3, .~. - IT_centered)
+BIC(maa3, maa4) # remove IT, according to BIC
+
+# we will keep IT, because it was found in the 
+# frequency model, and we want our models to be comparable
+
+# summary for paper
+m13 <- update(maa3, .~., REML = TRUE)
+summary(m13)
+
+
+
+# full model summary for paper
+full_acc_model <- update(maa0, .~., REML = TRUE)
+summary(full_acc_model)
+round(summary(full_acc_model)$coef, digits = 3)
+
+# diagnostics
+plot(m13)
+qqnorm(ranef(m13)$beeColHive[[1]])
+qqline(ranef(m13)$beeColHive[[1]])
+
+# post-hoc tests with bonf adjustment
+summary(glht(m13, linfct = mcp(trt = "Tukey")), 
+        test = adjusted("bonf"))
+
+
+# refit model on orignal scale, for better plotting
+maa3 <- lmer(log(amp_acc2) ~ trt + IT_imputed + trialNum + 
+              (1 + trialNum | beeColHive), 
+            data = sl,  REML = TRUE)
+summary(maa3)
+
+```
+
+### predict some values with acceleration model
+
+```{r}
+
+summary(m13)$coef
+# generate data frame for predictions
+pframe1 <- data.frame(expand.grid(trt = levels(sl$trt), 
+                                 IT_centered = c(-1, 
+                                                  0, 
+                                                1),  
+                                 beeColHive  = 99999, 
+                                 trialNum = 2, 
+                                 freq = 0))
+
+pframe1$preds <- predict(m13, newdata = pframe1, re.form=NA, type = 'response')
+
+
+# for treatment high
+# exp(0.182265402) =  1.199933
+pframe1 %>%
+  filter(IT_centered == 0) %>%
+  mutate(exp_preds = exp(preds))
+1.199933 * 21.10552
+
+
+pframe1 %>%
+  filter(IT_centered == 1) %>%
+  mutate(exp_preds = exp(preds))
+1.199933 * 28.76815
+
+
+# for IT span 
+# > exp(0.309734388)
+# [1] 1.363063
+pframe1 %>%
+  filter(trt == "full") %>%
+  mutate(exp_preds = exp(preds))
+1.36 * 21.105
+1.36 * 15.48389
+
+```
+
+# Make acceleration plot the same as the frequency plot
+
+```{r, cache = TRUE}
+# don't need hive, because that's not in the model we chose (above)
+pframe_a <- data.frame(expand.grid(trt = levels(sl$trt), 
+                                 IT_imputed = seq(min(s2$IT_imputed), max(s2$IT_imputed), 
+                                                  length.out = 50),  
+                                 beeColHive  = 99999, 
+                                 trialNum = 2))
+pframe_a$acc <- 0
+
+# exponentiate to put back onto original scale
+pp <- predict(maa3, 
+              newdata = pframe_a, 
+              re.form=NA, 
+              type = 'response') %>% exp() 
+
+
+
+
+### Calculate CI's (using bootstrap, not accounting for random effects)
+system.time({
+  bb2 <- bootMer(maa3, 
+                 FUN=function(x) predict(x, 
+                                         pframe_a, 
+                                         re.form=NA, 
+                                         type = 'response'), 
+                 nsim = nbootSims) 
+})
+
+print(paste("Number of bootstrap samples", nrow(bb2$t)))
+bb2_se <-apply(bb2$t,2,function(x) quantile(x, probs = c(0.025, 0.975)))
+pframe_a$blo<-bb2_se[1,] %>% exp()
+pframe_a$bhi<-bb2_se[2,] %>% exp()
+pframe_a$predMean <- pp
+pframe_a <- pframe_a[, c('trt',"IT_imputed", "blo", "bhi", "predMean")]
+```
+
+
+# Make accel plot for paper
+
+```{r}
+# recode factor
+pframe_a$trt3 = plyr::mapvalues(pframe$trt, from = c("full", "high", "low"), 
+                        to = c("Full range\n(220 - 450 Hz)", 
+                               "High range\n(340 - 390 Hz)",
+                               "Low range\n(220 - 330 Hz)"))
+ga1 <- ggplot(pframe_a, aes(x=IT_imputed, y=predMean, color = trt3, fill = trt3))+
+        
+        labs(y = expression ("Sonication acceleration "(m~s^{-2})), 
+             x = "Intertegular span (mm)") + 
+        geom_ribbon(aes(ymin = blo, ymax = bhi), alpha = 0.2, color = NA)+
+        geom_line()+
+        theme(plot.background = element_rect(fill = "transparent",colour = NA), 
+            panel.background = element_rect(fill = "transparent",colour = NA), 
+            legend.position =c(0.2, 0.82), 
+            legend.background = element_rect(fill="transparent", colour = NA),
+            strip.background = element_blank(),
+            legend.title = element_text(size = 8),
+            panel.spacing.x = unit(1, "lines"), 
+           plot.margin = margin(c(0.2,0.51, 0.2, 0.2), unit = "cm")) +
+        scale_color_viridis_d(name = "Frequency range\nfor reward", end = 0.7, option = "inferno") + 
+        scale_fill_viridis_d(name = "Frequency range\nfor reward", end =0.7, option = 'inferno')
+ga1
+```
+
+
+# Compare acceleration analysis when 2 bees without IT are missing
+```{r}
+summary(m13)$coef
+missing_accel <- update(m13, .~. - IT, data = sl[!is.na(sl$IT),])
+
+summary(missing_accel)$coef
+```
+
+
+# Combine freq and accel plots into a single figure
+```{r}
+# set ggplot theme
+theme_set(theme_classic() + 
+            theme(axis.text=element_text(colour="black"), 
+                  text=element_text(size=10)))
+
+g2 <- g1 + 
+  theme(legend.position = c(1.1,1.1), 
+        legend.direction = "horizontal", 
+        plot.margin = margin(c(1.5,0.51, 0.2, 0.2), unit = "cm"), 
+        legend.title = element_text(size = 10), 
+        legend.text = element_text(size = 8))
+
+g2
+ga2 <- ga1 + 
+  theme(legend.position = "none", 
+        plot.margin = margin(c(1.5,0.51, 0.2, 0.2), unit = "cm"))
+
+ga2
+aa <- plot_grid(g2, ga2)
+
+aa
+
+tiff(file.path(figDir, "001_Exp1_AccAndFreq.tiff"), 
+      width = 6.5, height = 4, units = "in", res = 500)
+aa
+dev.off()
+```
+
+
+# print session info
+```{r}
+sessionInfo()
+```
+

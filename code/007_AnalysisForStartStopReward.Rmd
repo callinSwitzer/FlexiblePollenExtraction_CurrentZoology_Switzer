@@ -1,0 +1,1246 @@
+---
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+<pre>
+## Callin Switzer
+## Analysis for experiment 2 (predictable, innate response)
+### i.e. do bees change behvior when the start or stop getting a pollen reward?
+
+## update -- Jan 8 2019
+## Jan 14 2019, prep for zenodo
+</pre>
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+```
+
+```{r, warning = FALSE, message=FALSE}
+#install packages
+ipak <- function(pkg){
+     new.pkg <- pkg[!(pkg %in% installed.packages()[, "Package"])]
+     if(length(new.pkg)) install.packages(new.pkg, dependencies = TRUE)
+     sapply(pkg, require, character.only = TRUE)
+}
+
+packages <- c('lme4', "multcomp", 
+              "plyr", "effects", 
+              "GGally", "survminer", 
+              "gamm4", "cowplot", "coxme", 
+              "tidyverse")
+ipak(packages)
+
+# set ggplot theme
+theme_set(theme_classic() + 
+            theme(axis.text=element_text(colour="black"), 
+                  text=element_text(size=10)))
+
+# set  directories
+dataDir <- file.path(getwd(), "data")
+figDir <- file.path(getwd(), "figures")
+
+print(paste("last run ", Sys.time()))
+print(R.version)
+```
+
+
+# Read in data and tidy. Calculate descriptive statistics.
+
+```{r, message = FALSE}
+bees_raw <- read_csv(file.path(dataDir, "03_StartStop_cleaned.csv"))
+
+bees <- bees_raw %>%
+  mutate(hive = as.factor(hive), 
+         amp = amp /2, 
+         amp_acc = amp_acc / 2, 
+         hive = recode(hive, "7"="4", "8" = "5"), 
+         trt2 = recode(treatment, "RewFir" = "Rewarded -> Unrewarded",
+                        "RewSec" = "Unrewarded -> Rewarded"), 
+         visitNum_centered = visitNum - 51, 
+         visitNum_centered = ifelse(visitNum_centered >= 0, 
+                                    yes = visitNum_centered +1, 
+                                    no = visitNum_centered),
+         visitNum_positive = ifelse(visitNum >= 51, 
+                                    yes = visitNum_centered, 
+                                    no = visitNum ), 
+         trt2 = as.factor(trt2),
+         treatment_rewarded = as.factor(treatment_rewarded))
+
+# number of bees -- should be 96
+length(unique(bees$BeeNumCol))
+
+# num bees per colony
+bees %>%
+  dplyr::select(BeeNumCol, hive) %>%
+  distinct() %>%
+  group_by(hive) %>%
+  tally()
+
+# number of buzzes per bee
+mean(xtabs(~bees$BeeNumCol))
+
+# num observations -- should be 5851
+nrow(bees)
+
+# calculate num of buzzes in each treatment
+xtabs(~bees$treatment)
+length(unique(bees$beeID[bees$treatment == "RewFir"]))
+length(unique(bees$beeID[bees$treatment == "RewSec"]))
+
+# calculate mean IT span (for centering)
+IT_mean <- bees %>% 
+    group_by(BeeNumCol) %>% 
+    slice(1) %>%
+  ungroup() %>%
+  dplyr::select(IT_mm) %>%
+  summarise(mean = mean(IT_mm)) %>%
+  as.numeric()
+
+print(IT_mean)
+
+# add new variable 
+# that is the centered IT span
+bees <- bees %>% 
+  mutate(IT_centered = IT_mm - IT_mean)
+
+print(min(bees$IT_centered))
+print(min(bees$IT_mm))
+
+print(max(bees$IT_mm))
+5.2 - IT_mean
+3.1 - IT_mean
+
+
+
+```
+
+# Time dependent survival analysis (based on vignette below)
+###  https://cran.r-project.org/web/packages/survival/vignettes/timedep.pdf
+```{r}
+# make survival plot
+survBees <- t(sapply(unique(bees$beeID), function(x) {
+     tmp <- bees[bees$beeID == x, ]
+     return(tmp[which.max(tmp$visitNum), ])
+}))
+
+lastObs <- as.data.frame(survBees)
+lastObs$index <- as.numeric(lastObs$visitNum)
+
+# 1 = censored, 2 = stopped buzzing for 5 min
+lastObs$status <- mapvalues(lastObs$index == 100, from = c(TRUE, FALSE), to = c(1, 2))
+
+lastObs2 <- lastObs %>%
+  dplyr::select(BeeNumCol, treatment, index) %>%
+  mutate(treatment = as.factor(unlist(.$treatment)))
+
+# reshape to add time-dependent covariate
+# subject, time1, time2, death, covariate (rewarded)
+
+timeDF <- as.tbl(bees) %>%
+  dplyr::select(BeeNumCol, treatment, treatment_rewarded, visitNum, IT_mm, hive) %>%
+  mutate(pollenReward = treatment_rewarded) %>%
+  dplyr::select(-treatment_rewarded) %>%
+  group_by(BeeNumCol, pollenReward) %>%
+  filter(visitNum == max(visitNum) | visitNum == min(visitNum)) %>%
+  group_by(BeeNumCol) 
+
+timeMax = timeDF %>%
+  filter(visitNum == max(visitNum)) %>%
+  mutate(censor = recode(visitNum, `100` = "censor", 
+                         .default = "give up"))
+
+timeDF <- timeDF %>%
+  full_join(timeMax) %>%
+  ungroup() %>%
+  mutate(censor = replace_na(.$censor, replace = 0))
+
+timeDF2 = timeDF %>%
+  mutate(time1 = visitNum,
+    time2 = lead(visitNum, 1), 
+    censor2 = lead(censor), 
+    pollenR2 = lead(pollenReward)) %>%
+  filter(time2 != 1) %>%
+  dplyr::select(-censor) %>%
+  filter(time2 != 51) %>%
+  dplyr::select(c(-pollenReward, -visitNum)) %>%
+  mutate(stop_pollinating = (censor2 == "give up")*1, 
+         censor2 = (censor2 == "censor")*1) %>%
+  mutate(time1 = replace(time1, time1 == 51, 50)) 
+
+# create survival object
+timeDF2$survObj <- Surv(timeDF2$time1, timeDF2$time2, event = timeDF2$stop_pollinating)
+
+timeDF2 <- timeDF2 %>%
+  mutate(treatment = as.factor(treatment), 
+         pollenR2 = as.factor(pollenR2), 
+         hive = as.factor(hive))
+
+table(timeDF2$treatment)
+sum(timeDF2$stop_pollinating) # num that stopped
+length(unique(timeDF2$BeeNumCol)) # total num of bees
+
+
+###########
+# 
+#  Cox model with same predictors as below
+#
+###########
+
+# rename variables the same as below
+timeDF2$trt2 <- timeDF2$treatment
+timeDF2$treatment_rewarded = timeDF2$pollenR2
+timeDF2$IT_centered = timeDF2$IT_mm - IT_mean
+
+
+# fit time-varying cox model
+m00 <- coxme(formula = survObj ~ 
+              trt2 + # treatment order
+              treatment_rewarded + # treatment
+              IT_centered + 
+              hive + 
+              # two-way interactions
+              treatment_rewarded:IT_centered + 
+                (1|BeeNumCol),
+            data = timeDF2)
+
+summary(m00)
+
+m1 <- coxme(formula = survObj ~ 
+              trt2 + # treatment order
+              treatment_rewarded + # treatment
+              IT_centered + 
+              hive +  
+                (1|BeeNumCol),
+            data = timeDF2)
+summary(m1)
+BIC(m00, m1) # keep M1
+anova(m00, m1)# keep M1
+
+
+m11<- coxme(formula = survObj ~ 
+              trt2 + # treatment order
+              treatment_rewarded + # treatment
+              hive +  
+                (1|BeeNumCol),
+            data = timeDF2)
+
+anova(m1,m11) # IT doesn't improve model
+BIC(m1, m11) # keep m11
+summary(m11)
+
+
+# keep treatment in model, since it's of interest
+m12 <- coxme(formula = survObj ~ 
+              treatment_rewarded + # keep treatment
+              hive +  
+                (1|BeeNumCol),
+            data = timeDF2)
+
+summary(m12)
+anova(m12) #  final for paper
+
+
+m13 <-  coxme(formula = survObj ~ 
+                  treatment_rewarded +  
+                (1|BeeNumCol),
+            data = timeDF2)
+
+anova(m12, m13) # p-value for hive for paper
+
+m14 <- coxme(formula = survObj ~ 
+                  hive +  
+                (1|BeeNumCol),
+            data = timeDF2)
+
+anova(m12, m14) # p-value for treatment for paper
+
+
+exp(0.8923705) # interpret coefficient for hive 4
+
+exp(0.8730445) # interpret coef for hive 
+
+
+# refit model for hive 5
+timeDF3 <- timeDF2 %>%
+  mutate(hive = relevel(as.factor(.$hive), ref = "5"), 
+         pollenR2 = relevel(as.factor(.$pollenR2), ref = "TRUE"))
+m13 <- coxme(formula = survObj ~   hive + pollenR2  + (1|BeeNumCol),
+            data = timeDF3)
+
+summary(m13)
+
+
+# refit model to be able to test proportional hazard assumption
+m2 <- coxph(formula = survObj ~  pollenR2 + hive+  frailty(BeeNumCol),
+            data = timeDF2)
+
+# test proportional hazard assumption
+(testph <- cox.zph(m2, transform = 'log')) # no evidence that prop haz assumption is violated
+plot(testph)
+
+
+
+## Kaplan-Meier estimator. 
+timeDF2$treatment <- mapvalues(timeDF2$treatment, 
+                               from = c("RewFir", "RewSec"), 
+                               to = c("Reward -> No Reward", "No Reward -> Reward"))
+
+km.as.one <- survfit(survObj ~ 1, data = timeDF2, conf.type = "log-log")
+km.by.trt <- survfit(survObj ~ treatment + hive, data = timeDF2, conf.type = "log-log")
+
+gsv <- ggsurvplot(survfit(Surv(time1, time2, stop_pollinating) ~ 
+                            treatment + hive, data = timeDF2, conf.type = "log-log")) 
+
+gsv
+
+gsv$plot + facet_wrap(~treatment + hive) + 
+     theme_bw()   + 
+    theme(panel.grid.major = element_line(colour = "grey50", size = 0.1), 
+          panel.grid.minor = element_line(colour = "grey50", size = 0.1), 
+          strip.background =element_rect(fill="white"))+
+     theme(legend.position = "none")  + 
+     scale_color_viridis_d(begin = 0.3, end = 0.7, option = "magma")  + 
+     xlab("Sonication Number") + 
+     ylab("Cumulative Proportion Sonicating")  + 
+  geom_vline(aes(xintercept = 50), lty = 2)
+
+# change from "hive" to "colony"
+timeDF2 <- timeDF2 %>%
+  mutate(Colony = hive) %>%
+  mutate(Colony = as.character(Colony))
+
+gsv <- ggsurvplot(survfit(Surv(time1, time2, stop_pollinating) ~ 
+                            treatment + Colony, data = timeDF2, conf.type = "log-log")) 
+
+dd = gsv$data.survplot
+
+ggplot(dd, aes(x = time, y = surv, color = treatment)) + 
+  facet_wrap(~  Colony, labeller = "label_both") + 
+  theme_classic() + 
+  geom_step(size = 1.1) + 
+  theme(strip.background = element_rect(fill = NA, color = "white"), 
+        strip.text.x = element_text(margin = margin(0.1,0,0.1,0, "cm")))+
+  theme(panel.border = element_blank()) + 
+     theme(legend.title = element_blank(),
+           panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+           legend.position = c(0.24, 0.19),
+           legend.background = element_rect(fill = 'grey95'),
+           text = element_text(color = "black", size = 12),
+           legend.direction = "vertical",
+           axis.text = element_text(color = "black", size = 10), 
+           panel.spacing = unit(0.5, "lines"))  +
+     scale_color_viridis_d(begin = 0.3, end = 0.7, option = "magma")  +
+     xlab("Visit Number, centered") + 
+     ylab("Cumulative Proportion Sonicating")  + 
+  geom_segment(aes(x=50,xend=50,y=0,yend=1), lty = 2, color= 'black') + 
+  scale_x_continuous(breaks = c(0, 25, 50, 75, 100), labels = c(-50, -25, 0, 25, 50))
+
+ggsave(file.path(figDir, "beeSonicationPercentage_StartStop.tiff"), units = "in", dpi = 500, 
+       width = 5.5, height = 4)
+
+```
+
+
+# Visualize amplitude by visit number
+```{r}
+# visualize
+ggplot(bees, aes(x = visitNum_positive, y = amp_acc, 
+                 color = treatment_rewarded)) +
+     stat_smooth(method = "loess", span =1) + 
+     xlab("Sonication number\n (0 is when treatment switched)") + 
+     ylab("Sonication frequency (Hz)") + 
+     facet_wrap(~trt2) + 
+     scale_color_viridis_d(name = "Rewarded Buzzes", 
+                          begin = 0.2, end = 0.6) 
+
+```
+
+# Amplitude analysis with start/stop trials
+## Use GAMM to investigate nonlinearities
+
+```{r}
+#####____________ fixed effects ____________
+# treatment order (rewarded first or unrewarded first), 
+# treatment (rewarded or unrewarded), 
+# IT span, 
+# colony, 
+# visit number
+# the interaction of treatment and treatment order, 
+# interaction of treatment and IT_span
+# and the interaction of visit number with treatment order.
+# random =  ~(1|beeID)
+
+# note: treatment_rewarded is TRUE if the bee received a reward
+# trt2 is trtment order --  "rewarded -> unrewarded" or "unreawarded - > rewarded"
+
+g0 = gamm4(log(amp_acc) ~ 
+                trt2 + # treatment order
+                treatment_rewarded +   # treatment
+                IT_centered + 
+                hive + 
+                s(visitNum_positive, by = interaction(trt2, treatment_rewarded)) +
+               trt2:treatment_rewarded + 
+               treatment_rewarded:IT_centered,
+             random =  ~(1|beeID), data = bees, 
+             REML = FALSE)
+
+par(mfrow = c(3,3))
+aab <- plot(g0$gam, all.terms = TRUE, 
+            rug = FALSE, shade = TRUE)
+summary(g0$gam) 
+summary(g0$mer)
+dev.off()
+
+g1 = gamm4(log(amp_acc) ~ 
+               trt2 + # treatment order
+               treatment_rewarded + # treatment
+               IT_centered + 
+               hive + 
+               s(visitNum_positive, by = trt2) + 
+               trt2:treatment_rewarded + 
+               treatment_rewarded:IT_centered,
+             random =  ~(1|beeID), data = bees, 
+             REML = FALSE)
+
+BIC(g0$mer, g1$mer) # keep g1
+summary(g1$mer)
+
+g2 = gamm4(log(amp_acc) ~ 
+               trt2 + # treatment order
+               treatment_rewarded + # treatment
+               IT_centered + 
+               hive + 
+               s(visitNum_positive, by = treatment_rewarded) + 
+               trt2:treatment_rewarded + 
+               treatment_rewarded:IT_centered,
+             random =  ~(1|beeID), data = bees, 
+             REML = FALSE)
+
+BIC(g2$mer, g1$mer) # keep g1
+summary(g1$mer)
+
+g3 = gamm4(log(amp_acc) ~ 
+               trt2 + # treatment order
+               treatment_rewarded + # treatment
+               IT_centered + 
+               hive + 
+               s(visitNum_positive) + 
+               trt2:treatment_rewarded + 
+               treatment_rewarded:IT_centered,
+             random =  ~(1|beeID), data = bees, 
+             REML = FALSE)
+BIC(g1$mer, g3$mer) # keep g3
+summary(g3$mer)
+
+
+g4 = gamm4(log(amp_acc) ~ 
+               trt2 + # treatment order
+               treatment_rewarded + # treatment
+               IT_centered + 
+               hive + 
+               visitNum_positive + 
+               trt2:treatment_rewarded + 
+               treatment_rewarded:IT_centered,
+             random =  ~(1|beeID), data = bees, 
+             REML = FALSE)
+BIC(g4$mer, g3$mer) # keep g4 -- no nonlinearities of visit number
+summary(g4$mer)
+```
+
+# Fit acceleration model with LMER
+
+```{r}
+# treatment order (rewarded first or unrewarded first), 
+# treatment (rewarded or unrewarded), IT span, colony, visit number
+# the interaction of treatment and treatment order, 
+# interaction of treatment and IT_span
+# and the interaction of visit number with treatment order.
+# and the three way interaction
+# random =  ~(1|beeID)
+
+m0 <- lmer(log(amp_acc) ~ 
+              trt2 + # treatment order
+              treatment_rewarded + # treatment
+              IT_centered + 
+              hive + 
+              visitNum_positive + 
+              # two-way interactions
+              treatment_rewarded:IT_centered + 
+              visitNum_positive:treatment_rewarded +
+              visitNum_positive:trt2 + 
+              trt2:treatment_rewarded + 
+              # three way interaction
+              trt2:treatment_rewarded:visitNum_positive + 
+              (1|beeID), data = bees, REML = FALSE)
+summary(m0) 
+plot(m0)
+
+# show need for log transformation
+m_noTransform <- update(m0, amp_acc ~.)
+plot(m_noTransform) 
+
+
+m01 <- update(m0, .~. - trt2:treatment_rewarded:visitNum_positive)
+BIC(m0, m01) # no 3-way interaction
+#     df      BIC
+# m0  13 11377.66
+# m01 12 11369.21
+summary(m01)$coef
+
+m1 <- update(m01, .~. - trt2:treatment_rewarded)
+BIC(m01, m1) # keep m1
+summary(m1)$coef
+
+m2 <- update(m1, .~. - treatment_rewarded:visitNum_positive)
+BIC(m1, m2) # keep m2
+summary(m2)$coef
+
+m3 <- update(m2, .~. - trt2:visitNum_positive)
+BIC(m2, m3) # keep m3
+summary(m3)$coef
+
+m4 <- update(m3, .~. - treatment_rewarded:IT_centered)
+BIC(m3, m4) # keep m3
+summary(m3)$coef
+
+m5 <- update(m3, .~. - visitNum_positive)
+BIC(m3, m5) # keep m5
+summary(m5)$coef
+
+
+m6 <- update(m5, .~. - trt2)
+BIC(m5, m6) # keep m6
+summary(m6)$coef
+
+m7 <- update(m6, .~. - hive)
+BIC(m6, m7) # keep m6
+
+
+## report final model
+fin_acc_mod <- update(m6, .~., REML = TRUE)
+summary(fin_acc_mod)
+round(summary(fin_acc_mod)$coef, digits = 3)
+
+
+## report full model
+full_acc_mod <- update(m0, .~., REML = TRUE)
+summary(full_acc_mod)
+round(summary(full_acc_mod)$coef, digits = 3)
+
+# write to file, so I can copy and paste into ms word doc
+# write.csv(data.frame(round(summary(full_acc_mod)$coef, digits = 3)), file = "coefs.csv")
+
+# fit same model as frequency model, so they can be compared
+mod_acc_sameAsFreq <- lmer(log(amp_acc) ~ 
+                trt2 + 
+                treatment_rewarded + 
+                IT_centered + 
+                hive + 
+                treatment_rewarded:IT_centered + 
+                trt2:treatment_rewarded + 
+              (1|beeID), data = bees, REML = TRUE)
+summary(mod_acc_sameAsFreq)
+
+# write to file, so I can copy and paste into ms word doc
+#write.csv(data.frame(round(summary(mod_acc_sameAsFreq)$coef, digits = 3)), file = "coefs.csv")
+
+
+# diagnostics 
+plot(mod_acc_sameAsFreq)
+qqnorm(ranef(mod_acc_sameAsFreq)$beeID[[1]])
+qqline(ranef(mod_acc_sameAsFreq)$beeID[[1]])
+
+```
+
+
+### predict acceleration values for paper 
+```{r}
+summary(mod_acc_sameAsFreq)$coef
+exp(-0.127195814)
+
+exp(-0.127195814 + 0.006877762)
+
+pframe0 = expand.grid(trt2 = levels(as.factor(bees$trt2)), 
+                     IT_centered = c(1, 
+                                       -1,
+                                     0),
+                     hive = factor(c(4, 5), levels = levels(bees$hive)), 
+                     beeID = 99999, 
+                     treatment_rewarded = levels(as.factor(bees$treatment_rewarded)))
+
+pframe0$preds = predict(mod_acc_sameAsFreq, newdata = pframe0, re.form=NA, type = 'response')
+
+
+# For bees with an average IT span (IT span = 4.27, centered IT span = 0) that were rewarded first
+pframe0 %>%
+  filter(IT_centered == 0, 
+         trt2 == "Rewarded -> Unrewarded", 
+         hive == 4) %>%
+  select(-beeID, -hive) %>%
+  mutate(preds_exp = exp(preds), 
+         Diff = preds_exp - lag(preds_exp))
+
+26.60637 * exp(-0.127195814)
+
+# here is how this is calculated: 
+exp(3.281151 + 
+  0 * -0.099681 +
+  0 * -0.127196 + # no reward
+  0 * 0.407493 + 
+  0 * -0.239288 + 
+  0 * -0.171439 + 
+  0 *  0.006878)  - # subtract below
+  
+exp(3.281151 + 
+  0 * -0.099681 +
+  1 * -0.127196 + #  reward
+  0 * 0.407493 + 
+  0 * -0.239288 + 
+  0 * -0.171439 + 
+  0 *  0.006878)
+
+exp(-0.127195814 + 0.006877762) * 24.08212
+
+
+
+#  for bees of average IT span that were rewarded second
+pframe0 %>%
+  filter(IT_centered == 0, 
+         trt2 == "Unrewarded -> Rewarded", 
+         hive == 4) %>%
+  select(-beeID, -hive) %>%
+  mutate(preds_exp = exp(preds), 
+         Diff = preds_exp - lag(preds_exp)) 
+
+
+
+
+# for a very small bee (IT span = 3.1 mm, centered IT span = -1.17 mm) that was rewarded first,
+pframe0 %>%
+  filter(IT_centered == -1.17, 
+         trt2 == "Rewarded -> Unrewarded", 
+         hive == 4) %>%
+  select(-beeID, -hive) %>%
+  mutate(preds_exp = exp(preds), 
+         Diff = preds_exp - lag(preds_exp))
+
+exp(3.281151 + 
+  0 * -0.099681 +
+  1 * -0.127196 + #  reward
+  1 *  0.407493 * -1.17 + 
+  0 * -0.239288 + 
+  1 * -0.171439 * -1.17 + 
+  0 *  0.006878) - 
+
+exp(3.281151 + 
+  0 * -0.099681 +
+  0 * -0.127196 + # no reward
+  1 *  0.407493 * -1.17 + 
+  0 * -0.239288 + 
+  0 * -0.171439 + 
+  0 *  0.006878)  
+
+
+  
+  # for a very large bee (centered IT span = 1 mm) that was rewarded first,
+pframe0 %>%
+  filter(IT_centered == 1, 
+         trt2 == "Rewarded -> Unrewarded", 
+         hive == 4) %>%
+  select(-beeID, -hive) %>%
+  mutate(preds_exp = exp(preds), 
+         Diff = preds_exp - lag(preds_exp))
+
+exp(3.281151 + 
+  0 * -0.099681 +
+  1 * -0.127196 + #  reward
+  1 *  0.407493 * 0.93 + 
+  0 * -0.239288 + 
+  1 * -0.171439 * 0.93+ 
+  0 *  0.006878) - 
+
+
+exp(3.281151 + 
+  0 * -0.099681 +
+  0 * -0.127196 + # no reward
+  1 *  0.407493 * 0.93 + 
+  0 * -0.239288 + 
+  0 * -0.171439 + 
+  0 *  0.006878) 
+
+# bees of 1 cm centered IT span
+exp(-0.127195814 + -0.171438725) * 39.99055
+  
+# colony 5 vs. 4
+pframe0 %>%
+  filter(IT_centered == 0, 
+         trt2 == "Rewarded -> Unrewarded") %>%
+  select(-beeID) %>%
+  mutate(preds_exp = exp(preds), 
+         Diff = preds_exp - lag(preds_exp))
+
+
+exp(-0.239288) * 23.42854
+
+
+# bees of -1 cm centered IT span
+exp(-0.127195814 + -1* -0.171438725) * 17.70165
+  
+  # for a very large bee (centered IT span = 1 mm) that was rewarded first,
+pframe0 %>%
+  filter(IT_centered == -1, 
+         trt2 == "Rewarded -> Unrewarded", 
+         hive == 4) %>%
+  select(-beeID, -hive) %>%
+  mutate(preds_exp = exp(preds), 
+         Diff = preds_exp - lag(preds_exp))
+
+exp(0.407492650 + -0.171438725)
+
+```
+
+
+```{r bootstrap_acc, cache = TRUE}
+
+nbootSims = 10000
+
+pframe = expand.grid(IT_centered = seq(min(bees$IT_centered), max(bees$IT_centered), length.out = 50),
+                     hive = factor(c(4, 5), levels = levels(bees$hive)), 
+                     beeID = 99999, 
+                     trt2 = levels(bees$trt2),
+                     treatment_rewarded = levels(bees$treatment_rewarded))
+
+pframe$amp_acc <- 0
+
+# predict make plots, using reduced model
+pp <- exp(predict(mod_acc_sameAsFreq, newdata = pframe, re.form=NA, type = 'response')) # re.form sets all random effects to 0
+
+
+### Calculate CI's (using bootstrap, not accounting for random effects)
+system.time({
+  bb2 <- bootMer(mod_acc_sameAsFreq, FUN=function(x) predict(x, pframe, re.form=NA, type = 'response'), nsim = nbootSims)
+})
+print(paste("Number of bootstrap samples", nrow(bb2$t)))
+bb2_se <-apply(bb2$t,2,function(x) quantile(x, probs = c(0.025, 0.975)))
+pframe$blo<- exp((bb2_se[1,])) # exponentiate to put on original scale
+pframe$bhi<- exp((bb2_se[2,]))
+pframe$predMean <- pp
+
+pframe$treatment_rewarded2 <- mapvalues(pframe$treatment_rewarded, from = c(FALSE, TRUE ), 
+                                        to = c("No Reward", "Reward"))
+
+pframe$treatment_rewarded2 <- relevel(pframe$treatment_rewarded2, ref = "Reward")
+
+pframe <- pframe %>%
+  mutate(Colony = hive)
+
+pframe$`Treatment Order` = pframe$trt2
+```
+
+
+# Plot acceleration w/ bootstrap CI's
+
+```{r}
+
+# add mean to IT to put back on original scale
+ampPlotIT2 <- ggplot(pframe, aes(x=IT_centered + IT_mean, y=predMean, color = treatment_rewarded2, fill  = treatment_rewarded2))+
+     
+  facet_grid( Colony ~ `Treatment Order`, labeller = labeller(`Treatment Order`= label_both, Colony = label_both), scales = 'free_x') +
+     labs(y = expression ("Sonication acceleration "(m~s^{-2})), x = "Intertegular span (mm)") + 
+     geom_ribbon(aes(x = IT_centered + IT_mean, ymin = blo, ymax = bhi), color = NA, alpha = 0.2) + 
+  geom_line()+ 
+  scale_color_viridis_d(name = "Treatment", begin =0.3, end = 0.8) + 
+  scale_fill_viridis_d( name = "Treatment", begin =0.3, end = 0.8) + 
+  theme(legend.position = c(0.2, 0.4), 
+        legend.background = element_rect(fill = "white"))
+ampPlotIT2
+
+ggsave(filename = file.path(figDir, "AccStartStop_Supp.tiff"), width = 6.5, height = 5, units = "in", dpi = 500)
+
+
+# Make plot to show bee size by treatment
+bees$`Treatment Order` = bees$trt2
+beeSizePlot <- ggplot( bees[!duplicated(bees$IT_mm),],aes( x = hive, y = IT_mm, color = `Treatment Order`))  +
+  geom_point(position = position_jitterdodge(dodge.width = .6, jitter.width = 0.05)) + 
+  geom_violin(aes(fill = `Treatment Order`), alpha = 0.3, position = position_dodge(width = 0.6), trim = F, bw = 0.2, width = 0.5, color = NA)+ 
+  theme(legend.position = c(0.5, 0.91),
+      legend.background = element_rect(fill=alpha('white', 0)),
+      legend.title = element_text(size = 10),
+      legend.text = element_text(size = 8)) +
+  scale_color_viridis_d(name = "Treatment Order", begin = 0.2, end = 0.8) + 
+  scale_fill_viridis_d(name = "Treatment Order", begin = 0.2, end = 0.8) + 
+  labs(x = "Colony Number", y = "Intertegular span (mm)")
+beeSizePlot
+
+ggsave(filename = file.path(figDir, "BeeSize_StartStop.tiff"), width = 6.5, height = 4, units = "in", dpi = 500)
+
+
+Fig32 <- ampPlotIT2
+
+
+
+# make plot of just colony 4
+# add mean to IT to put back on original scale
+ampPlot_oneCol <- ggplot(pframe[pframe$Colony == "4", ], 
+                     aes(x=IT_centered + IT_mean, y=predMean, 
+                         color = treatment_rewarded2, 
+                         fill  = treatment_rewarded2))+
+            geom_ribbon(aes(x = IT_centered + IT_mean, 
+                            ymin = blo, ymax = bhi), color = NA, alpha = 0.2) +    
+            geom_line()+ 
+           labs(y = expression ("Sonication acceleration "(m~s^{-2})), x = "Intertegular span (mm)") + 
+            facet_grid( ~ `Treatment Order`, labeller = labeller(`Treatment Order`= label_both, Colony = label_both), scales = 'free_x') +
+               
+            scale_color_viridis_d(name = "Treatment", begin =0.3, end = 0.8) + 
+            scale_fill_viridis_d( name = "Treatment", begin =0.3, end = 0.8) + 
+            theme(legend.position = c(0.2, 0.8), 
+                  strip.background =element_rect(fill = "white", linetype = 1, size = 1, color = 'black'), 
+                  legend.background = element_rect(fill=alpha('white', 1)), 
+                  legend.title = element_text(size = 10), 
+                  legend.text = element_text(size = 8))
+ampPlot_oneCol
+
+Fig3b <- ampPlot_oneCol
+```
+
+
+---
+
+# Frequency analysis
+
+```{r}
+# visualize frequency
+ggplot(bees, aes(x = visitNum_positive, y = freq, 
+                 color = treatment_rewarded)) +
+     stat_smooth(method = "loess", span = 1) + 
+     xlab("Sonication number\n (0 is when treatment switched)") + 
+     ylab("Sonication frequency (Hz)") + 
+     facet_wrap(~trt2) + 
+     scale_color_viridis_d(name = "Rewarded Buzzes", 
+                          begin = 0.2, end = 0.6) 
+```
+
+
+## GAMM for frequency
+
+```{r}
+g00 = gamm4(freq ~
+              trt2 + # treatment order
+              treatment_rewarded +   # treatment
+              IT_centered + 
+              hive + 
+              s(visitNum_positive, by = interaction(trt2, treatment_rewarded)) +
+              trt2:treatment_rewarded + 
+              treatment_rewarded:IT_centered,
+              random =  ~(1|beeID), data = bees, 
+              REML = FALSE)
+
+# start with gamm so I can show change by visit number
+par(mfrow = c(3,3))
+aab <- plot(g00$gam, all.terms = TRUE, rug = FALSE, shade = TRUE)
+summary(g00$gam) # Summary for paper 
+summary(g00$mer)
+dev.off()
+
+# remove smooth interaction
+g0 = gamm4(freq ~
+              trt2 + # treatment order
+              treatment_rewarded +   # treatment
+              IT_centered + 
+              hive + 
+              s(visitNum_positive, by =  treatment_rewarded) +
+              trt2:treatment_rewarded + 
+              treatment_rewarded:IT_centered,
+              random =  ~(1|beeID), data = bees, 
+              REML = FALSE)
+
+# start with gamm so I can show change by visit number
+par(mfrow = c(3,3))
+aab <- plot(g0$gam, all.terms = TRUE, rug = FALSE, shade = TRUE)
+summary(g0$gam) # Summary for paper 
+summary(g0$mer)
+dev.off()
+
+BIC(g00$mer, g0$mer) # keep g0
+
+
+
+g1 = gamm4(freq ~ 
+               trt2 + # treatment order
+               treatment_rewarded + # treatment
+               IT_centered + 
+               hive + 
+               s(visitNum_positive, by = trt2) +
+               trt2:treatment_rewarded + 
+               treatment_rewarded:IT_centered,
+             random =  ~(1|beeID), data = bees, 
+             REML = FALSE)
+
+
+BIC(g0$mer, g1$mer) # keep g0 -- smooth by treatment order
+summary(g1$mer)
+
+g2 = gamm4(freq ~ 
+               trt2 + # treatment order
+               treatment_rewarded + # treatment
+               IT_centered + 
+               hive + 
+               s(visitNum_positive) + 
+               trt2:treatment_rewarded + 
+               treatment_rewarded:IT_centered,
+             random =  ~(1|beeID), data = bees, 
+             REML = FALSE)
+
+par(mfrow = c(3,3))
+aab <- plot(g2$gam, all.terms = TRUE, rug = FALSE, shade = TRUE)
+dev.off()
+
+BIC(g2$mer, g0$mer) # keep g2 -- no smooth by treatment order
+
+g3 = gamm4(freq ~ 
+               trt2 + # treatment order
+               treatment_rewarded + # treatment
+               IT_centered + 
+               hive + 
+               visitNum_positive + 
+               trt2:treatment_rewarded + 
+               treatment_rewarded:IT_centered,
+             random =  ~(1|beeID), data = bees, 
+             REML = FALSE)
+
+par(mfrow = c(3,3))
+aab <- plot(g3$gam, all.terms = TRUE, rug = FALSE, shade = TRUE)
+dev.off()
+
+BIC(g2$mer, g3$mer) # keep g3 -- no smooth for visit number
+```
+
+
+# Fit lmer with frequency
+
+```{r}
+
+# here are the meanings of variable names: 
+# trt2  # treatment order
+# treatment_rewarded    # treatment
+# visitNum_positive # visit number, withing one treatment
+
+# model with three-way interaction
+m0 <- lmer(freq ~
+              trt2 + # treatment order
+              treatment_rewarded + # treatment
+              IT_centered + 
+              hive + 
+              visitNum_positive + 
+              # two-way interactions
+              treatment_rewarded:IT_centered + 
+              visitNum_positive:treatment_rewarded +
+              visitNum_positive:trt2 + 
+              trt2:treatment_rewarded + 
+              # three way interaction
+              trt2:treatment_rewarded:visitNum_positive + 
+              (1|beeID), data = bees, 
+              REML = FALSE)
+
+summary(m0)
+m01 <- update(m0, .~. - trt2:treatment_rewarded:visitNum_positive)
+BIC(m0, m01)# don't keep 3-way interaction
+
+summary(m01)$coef
+
+
+m1 <- update(m01, .~. - treatment_rewarded:visitNum_positive)
+BIC(m01, m1) #keep m1
+summary(m1)$coef
+
+
+
+m2 <- update(m1, .~. -  visitNum_positive:trt2)
+BIC(m1, m2) # keep m2
+summary(m2)$coef
+
+m3 <- update(m2, .~. - trt2:treatment_rewarded)
+BIC(m2, m3) # keep m2
+summary(m2)$coef
+
+m4 <- update(m2, .~. - treatment_rewarded:IT_centered)
+BIC(m2, m4) # keep m2
+summary(m2)$coef
+
+m5 <- update(m2, .~. - visitNum_positive)
+BIC(m2, m5) # keep m5
+summary(m5)$coef
+
+m6 <- update(m5, .~. - hive)
+BIC(m5, m6) # keep m5
+
+
+# final model for  freq
+finMod_freq <- update(m5, .~., REML = TRUE)
+summary(finMod_freq)
+round(summary(finMod_freq)$coef, digits = 3)
+
+# diagnostics 
+plot(finMod_freq)
+qqnorm(ranef(finMod_freq)$beeID[[1]])
+qqline(ranef(finMod_freq)$beeID[[1]])
+
+
+# full model for freq
+fullMod_freq <- update(m0, .~., REML = TRUE)
+summary(fullMod_freq)
+round(summary(fullMod_freq)$coef, digits = 3)
+```
+
+### predict some values: 
+```{r}
+pframe1 = expand.grid(trt2 = levels(as.factor(bees$trt2)), 
+                     IT_centered = c(-1.17, 
+                                       0.93,
+                                     0),
+                     hive = factor(4, levels = levels(bees$hive)), 
+                     beeID = 99999, 
+                     treatment_rewarded = levels(as.factor(bees$treatment_rewarded)))
+pframe1$preds = predict(finMod_freq, newdata = pframe1, re.form=NA, type = 'response')
+
+
+# For bees with an average IT span (IT span = 4.27, centered IT span = 0) that were rewarded first
+pframe1 %>%
+  filter(IT_centered == 0, 
+         trt2 == "Rewarded -> Unrewarded") %>%
+  select(-beeID, -hive)
+
+
+#  for bees of average IT span that were rewarded second
+pframe1 %>%
+  filter(IT_centered == 0, 
+         trt2 == "Unrewarded -> Rewarded") %>%
+  select(-beeID, -hive)
+
+# for a very small bee (IT span = 3.1 mm, centered IT span = -1.17 mm) that was rewarded first,
+pframe1 %>%
+  filter(IT_centered == -1.17, 
+         trt2 == "Rewarded -> Unrewarded") %>%
+  select(-beeID, -hive)
+
+
+# for a very large bee (IT span = 5.2 mm, centered IT span = 0.93 mm) that was rewarded first,
+pframe1 %>%
+  filter(IT_centered == 0.93, 
+         trt2 == "Rewarded -> Unrewarded") %>%
+  select(-beeID, -hive)
+
+328.4186 - 303.6220
+
+```
+
+
+
+
+
+
+```{r, cache = TRUE}
+# predict lmer
+pframe = expand.grid(trt2 = levels(as.factor(bees$trt2)), 
+                     IT_centered = seq(min(bees$IT_centered), 
+                                       max(bees$IT_centered), length.out = 50),
+                     hive = factor(c(4, 5), levels = levels(bees$hive)), 
+                     beeID = 99999, 
+                     treatment_rewarded = levels(as.factor(bees$treatment_rewarded)))
+
+pframe$freq <- 0
+
+# predict make plots, using reduced model
+pp <- predict(finMod_freq, newdata = pframe, re.form=NA, type = 'response')
+
+# Calculate CI's (using bootstrap, not accounting for random effects)
+system.time({
+  bb2 <- bootMer(finMod_freq, FUN=function(x) predict(x, pframe, 
+                                                      re.form=NA, 
+                                                      type = 'response'), 
+                 nsim = nbootSims)
+})
+print(paste("Number of bootstrap samples", nrow(bb2$t)))
+bb2_se <-apply(bb2$t,2,function(x) quantile(x, probs = c(0.025, 0.975)))
+pframe$blo<- ((bb2_se[1,])) 
+pframe$bhi<- ((bb2_se[2,]))
+pframe$predMean <- pp
+
+
+pframe$treatment_rewarded2 <- mapvalues(pframe$treatment_rewarded, from = c(FALSE, TRUE), 
+                                        to = c("No Reward", "Reward"))
+
+pframe$treatment_rewarded2 <- relevel(pframe$treatment_rewarded2, ref = "Reward")
+
+pframe$Colony <- pframe$hive
+
+
+pframe$`Treatment Order` = pframe$trt2
+```
+
+
+
+
+```{r}
+
+
+freqPlotIT <- ggplot(pframe, 
+                     aes(x=IT_centered + IT_mean, y=predMean))+
+     geom_line(aes(color = treatment_rewarded2))+ 
+  facet_grid(Colony ~ `Treatment Order`, labeller= label_both, scales = "free_x") +
+     labs(y = "Sonication frequency (Hz)", x = "Intertegular span (mm)") + 
+     geom_ribbon(aes(x = IT_centered + IT_mean, ymin = blo, ymax = bhi, fill = treatment_rewarded2), alpha = 0.2) + 
+  scale_color_viridis_d(name = "Treatment", begin =0.3, end = 0.8) + 
+  scale_fill_viridis_d(name = "Treatment", begin =0.3, end = 0.8) + 
+  theme(legend.position = c(0.21, 0.51), 
+        legend.background = element_rect(fill=alpha('white', 0)))
+  
+freqPlotIT
+save_plot(file.path(figDir, "FreqStartStop_twoColonies.tiff"), plot = freqPlotIT, dpi = 500,  base_width = 6.5, base_height = 5)
+
+
+freqPlot_oneColony <- ggplot(pframe[pframe$Colony == "4", ], 
+                     aes(x=IT_centered + IT_mean, y=predMean, 
+                         color = treatment_rewarded2, 
+                         fill  = treatment_rewarded2))+
+            geom_ribbon(aes(x = IT_centered + IT_mean, 
+                            ymin = blo, ymax = bhi), color = NA, alpha = 0.2) +    
+            geom_line()+ 
+           labs(y = "Sonication frequency (Hz)", x = "Intertegular span (mm)") + 
+            facet_grid( ~ `Treatment Order`, labeller = labeller(`Treatment Order`= label_both, Colony = label_both), scales = 'free_x') +
+               
+            scale_color_viridis_d(name = "Treatment", begin =0.3, end = 0.8) + 
+            scale_fill_viridis_d( name = "Treatment", begin =0.3, end = 0.8) + 
+            theme(legend.position = c(0.2, 0.8), 
+                  strip.background =element_rect(fill = "white", linetype = 1, size = 1, color = 'black'), 
+                  legend.background = element_rect(fill=alpha('white', 1)), 
+                  legend.title = element_text(size = 10), 
+                  legend.text = element_text(size = 8))
+freqPlot_oneColony
+
+Fig3a <- freqPlot_oneColony
+
+
+```
+
+
+
+### Combine plots into a single figure
+
+```{r}
+
+p1 <- Fig3a + xlab("") + theme(legend.position = "none", 
+                               strip.background = element_rect(color = "black"), 
+                               strip.text.x = element_text(margin = margin(0.2,0,0.2,0, "cm")), 
+                               axis.text.x=element_blank() 
+                               #axis.ticks.x=element_blank()
+                               ) + 
+            labs(y = expression ("Sonication frequency  " (Hz))) 
+p2 <- Fig3b + theme(strip.background = element_blank(),
+  strip.text.x = element_blank(), legend.position = c(0.6, 0.7), legend.box.background = element_blank()) + 
+  labs(y = expression ("Sonication acceleration  "(m~s^{-2})))
+
+
+aa <- plot_grid(p1, p2, align = 'v', axis = 'l', rel_widths = c(1,1), ncol = 1, nrow = 2)
+
+aa
+
+svg(file.path(figDir, "002_CombinedFreqAmp_rewNoRew_IT.svg"), width = 6.5, height = 6)
+ggdraw(aa)
+dev.off()
+
+# save as tiff
+save_plot(file.path(figDir, "002_CombinedFreqAmp_rewNoRew_IT_Order.tiff"), plot = aa, dpi = 500,  base_width = 6.5, base_height = 6)
+
+```
+
+
+
+# Make plots of time vs. performance (raw data + loess line)
+
+
+```{r}
+bees$treatment_rewarded2 <- mapvalues(bees$treatment_rewarded, from = c(FALSE, TRUE), 
+                                        to = c("No Reward", "Reward"))
+
+bees$treatment_rewarded2 <- relevel(bees$treatment_rewarded2, ref = "Reward")
+
+timePlot_freq <- ggplot(bees, aes(x = visitNum_centered, y = freq)) + 
+  geom_point(alpha = 0.2, position = position_jitter(width = 0, height = 2), 
+             stroke = 0, size = 0.6, aes(color = treatment_rewarded2)) + 
+  geom_line(stat="smooth",method = "loess",aes(color = treatment_rewarded2),
+              size = 1.2, span = 0.9,
+              alpha = 0.7, show.legend = FALSE)+
+  facet_wrap(~`Treatment Order`, labeller = label_both) + 
+  theme(legend.position = "top", 
+        panel.background = element_rect(fill = "transparent",colour = NA), 
+        legend.direction = "horizontal", 
+        legend.background = element_rect(fill=alpha('white', 1)), 
+                  legend.title = element_text(size = 10), 
+                  legend.text = element_text(size = 8)
+        ) + 
+  labs(y = expression ("Sonication frequency  " (Hz)), 
+               x = "Sonication Number") + 
+   scale_color_viridis_d(name = "Treatment", begin =0.3, end = 0.8, 
+                         guide = guide_legend(override.aes = list(alpha = 1, size = 2)))  + 
+  geom_vline(aes(xintercept = 0), lty = 2)
+timePlot_freq
+
+timePlot_merge = timePlot_freq + 
+  theme(strip.background = element_rect(color = "black"), 
+                               strip.text.x = element_text(margin = margin(0.2,0,0.2,0, "cm")), 
+                               axis.text.x=element_blank(), 
+                               axis.ticks.x=element_blank())
+
+
+ggsave(file.path(figDir, "Freq_OverTime_startStopReward.tiff"),plot = timePlot_freq, 
+       width = 6.5, height = 3, dpi = 500)
+
+
+timePlot_acc <- ggplot(bees, aes(x = visitNum_centered, y = amp_acc)) + 
+  geom_point(alpha = 0.2, stroke = 0, size = 0.6, aes(color = treatment_rewarded2)) + 
+  geom_line(stat="smooth",method = "loess",aes(color = treatment_rewarded2),
+              size = 1.2, span = 0.9,
+              alpha = 0.7, show.legend = FALSE)+
+  scale_y_log10() + 
+  facet_wrap(~trt2) + 
+  theme(panel.background = element_rect(fill = "transparent",colour = NA), 
+        legend.position = "none", 
+        legend.direction = "horizontal"
+        ) + 
+  labs(y = expression ("Sonication acceleration  " (m~s^{-2})), 
+               x = "Visit Number, centered") + 
+  scale_color_viridis_d(name = "Treatment", begin =0.3, end = 0.8, 
+                        guide = guide_legend(override.aes = list(alpha = 1, size = 2))) + 
+  geom_vline(aes(xintercept = 0), lty = 2)
+
+timePlot_acc
+
+
+ab <- plot_grid(timePlot_merge + labs(x = ""), 
+                timePlot_acc + theme(strip.background = element_blank(),
+                                     strip.text.x = element_blank()), 
+                align = 'h', axis = 'l', rel_widths = c(1,1), nrow = 2, 
+                rel_heights = c(1.3, 1))
+
+ggdraw(ab)
+
+
+
+save_plot(file.path(figDir, "TimePlots_rewardNoReward.tiff"), 
+          plot = ab, base_width = 6.5, base_height = 5, dpi = 500)
+
+save_plot(file.path(figDir, "TimePlots_rewardNoReward_lowRes.png"), 
+          plot = ab, base_width = 6.5, base_height = 5, dpi = 200)
+
+```
+
+```{r}
+sessionInfo()
+````
+
