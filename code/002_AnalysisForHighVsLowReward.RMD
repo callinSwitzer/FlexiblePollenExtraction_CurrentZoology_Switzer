@@ -62,9 +62,6 @@ sl <- sl %>%
   # make sure all bee colors are lowercase
   mutate(beeCol =  tolower(beeCol)) %>%
   
-  # fix orange.5, which should be orange.3
-  mutate(hive = ifelse(hive == "5" & beeCol == "orange", "3", hive)) %>%
-  
   # color + hive is an ID var 
   mutate(beeColHive = interaction(beeCol, hive), 
          colNum = paste(beeCol, hive, sep = "_")) %>%
@@ -72,9 +69,10 @@ sl <- sl %>%
   # fix IT for orange.3
   mutate(IT = replace(IT, beeColHive == "orange.3", 3.99)) %>%
   
-  # remove two trials that contain errors
-  filter(!(beeCol == "whitepink" & trialNum == 3)) %>%
-  filter(!(beeCol == "limepurple" & trialNum == 3)) %>%
+  # remove trials that contain errors
+  filter(!(beeCol == "whitepink" & trialNum == 3)) %>% 
+  filter(!(beeCol == "limepurple" & trialNum == 3)) %>% 
+  filter(!(beeCol == "orange" & hive == 5)) %>%
   
 
   # convert hive to factor
@@ -173,14 +171,14 @@ sl_sum %>%
   group_by(trt2) %>%
   summarize(counts = n())
 
-sl %>% nrow
-
 sl %>% group_by(beeColHive) %>%
   summarize(n()) %>%
   nrow()
 
 sl %>% group_by(trt2) %>%
   summarize(count= n())
+
+
 
 s2 <- sl_sum  %>%
   filter(trt2 != "full") %>%
@@ -265,10 +263,14 @@ BIC(m2, m4) # keep (m2) trt
 # refit best model with REML = TRUE
 m_Final <- update(m2, .~., REML = TRUE)
 summary(m_Final) # summary for paper
+#write.csv(round(summary(m_Final)$coef, 3), file = "coefs.csv")
+
 
 # show full model for paper
 fullMod_freq <- update(mFull, .~., REML = TRUE)
 summary(fullMod_freq)
+
+#write.csv(round(summary(fullMod_freq)$coef, 3), file = "coefs.csv")
 
 
 # m_Final diagnostics
@@ -479,14 +481,20 @@ ggplot(fta, aes(x = trialNum, y = freq, color = t5)) +
   labs(y = "Frequency (Hz)", x = "Trial Number")
 
 # supplementary figure for paper
-ggsave(filename = file.path(figDir,"freqLearningCurve.tiff"),
+ggsave(filename = file.path(figDir,"freqLearningCurve_V2.tiff"),
        dpi = 500,  width = 6.5*1.5, height = 4*1.5, units = "in")
+ggsave(filename = file.path(figDir,"freqLearningCurve_V2.png"),
+       dpi = 500,  width = 6.5*1.5, height = 4*1.5, units = "in")
+
 ```
 
 # Compare frequency analysis when 2 bees without IT are missing
 ```{r}
+
+unique(sl$beeCol[is.na(sl$IT)]) #bees with missing IT spans
+
 summary(m3)$coef
-missing_m3 <- update(m3, .~. - IT, data = sl[!is.na(sl$IT),])
+missing_m3 <- update(m3, .~., data = sl[!is.na(sl$IT),])
 
 summary(missing_m3)$coef
 ```
@@ -526,13 +534,14 @@ BIC(maa3, maa4) # remove IT, according to BIC
 # summary for paper
 m13 <- update(maa3, .~., REML = TRUE)
 summary(m13)
+#write.csv(round(summary(m13)$coef, digits = 3), "coef.csv")
 
 
 
 # full model summary for paper
 full_acc_model <- update(maa0, .~., REML = TRUE)
 summary(full_acc_model)
-round(summary(full_acc_model)$coef, digits = 3)
+# write.csv(round(summary(full_acc_model)$coef, digits = 3), "coef.csv")
 
 # diagnostics
 plot(m13)
@@ -698,6 +707,14 @@ tiff(file.path(figDir, "001_Exp1_AccAndFreq.tiff"),
       width = 6.5, height = 4, units = "in", res = 500)
 aa
 dev.off()
+
+svg(file.path(figDir, "001_Exp1_AccAndFreq_unannoted.svg"), 
+      width = 6.5, height = 4)
+aa
+dev.off()
+
+
+
 ```
 
 

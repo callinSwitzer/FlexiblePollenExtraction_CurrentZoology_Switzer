@@ -1,0 +1,372 @@
+---
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+
+<pre>
+## Callin Switzer
+## Analysis 2 of bee intrumental learning hypothesis experiment
+### Does the rate of pollen collection change over time?
+
+</pre>
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+```
+
+```{r, warning = FALSE, message=FALSE}
+#install packages
+ipak <- function(pkg){
+     new.pkg <- pkg[!(pkg %in% installed.packages()[, "Package"])]
+     if(length(new.pkg)) install.packages(new.pkg, dependencies = TRUE)
+     sapply(pkg, require, character.only = TRUE)
+}
+
+packages <- c("plyr", "tidyverse", 'lme4', 'sjPlot', 
+              "multcomp", "cowplot")
+ipak(packages)
+
+# set ggplot theme
+theme_set(theme_classic() + 
+            theme(axis.text=element_text(colour="black"), 
+                  text=element_text(size=10)))
+
+# set  directories
+dataDir <- file.path(getwd(), "data")
+figDir <- file.path(getwd(), "figures")
+
+print(paste("last run ", Sys.time()))
+print(R.version)
+```
+
+# Read in data and tidy
+
+```{r, message=FALSE}
+# read in data
+sl <- read_csv(file.path(dataDir, '01_CombinedTrials_cleaned.csv'))
+
+# clean data
+sl <- sl %>%
+  # gets rid of the copious warnings
+  mutate(timeSinceStart = NA, 
+         timeSinceLastBuzz = NA, 
+         buzzesSinceReward = NA) %>%
+  
+  # make sure all bee colors are lowercase
+  mutate(beeCol =  tolower(beeCol)) %>%
+  
+  # fix orange.5, which should be orange.3
+  #mutate(hive = ifelse(hive == "5" & beeCol == "orange", "3", hive)) %>%
+  
+  # color + hive is an ID var 
+  mutate(beeColHive = interaction(beeCol, hive), 
+         colNum = paste(beeCol, hive, sep = "_")) %>%
+  
+  # fix IT for orange.3
+  mutate(IT = replace(IT, beeColHive == "orange.3", 3.99)) %>%
+  
+  # remove two trials that contain errors
+  filter(!(beeCol == "whitepink" & trialNum == 3)) %>%
+  filter(!(beeCol == "limepurple" & trialNum == 3)) %>%
+ # filter(!(beeColHive == "orange.3" & trialNum == 1))
+  
+
+  # convert hive to factor
+  mutate(hive = as.factor(hive),
+         trt2  = ifelse(trt == 'full' & trialNum > 1, 
+                        "full_2", as.character(trt)), 
+         trt = relevel(factor(trt), ref = "full")) %>%
+  
+  # divide amplitud by 2
+  mutate(amp_acc2 = amp_acc / 2) %>%
+  mutate(trialNum0 = trialNum - 1)
+
+
+
+# calculate mean IT span (for centering)
+IT_mean <- sl %>% 
+    group_by(beeColHive) %>% 
+    slice(1) %>%
+  ungroup() %>%
+  dplyr::select(IT_imputed) %>%
+  summarise(mean = mean(IT_imputed)) %>%
+  as.numeric()
+
+# print overall mean of IT span
+print(IT_mean)
+
+# add new variable 
+# that is the centered IT span
+sl <- sl %>% 
+  mutate(IT_centered = IT_imputed - IT_mean)
+
+```
+
+
+# Calculate more descriptive stats 
+# and make supplementary fig for paper
+
+```{r}
+# std dev for rewards by treatment
+s2 = sl %>%
+  mutate(beeColHive = interaction(beeCol, hive), 
+         reward= grepl(pattern = "t", x = .$rewTF, ignore.case = TRUE)*1) 
+
+
+s3 = s2 %>%
+  group_by(beeColHive, trt2) %>%
+  dplyr::summarize(mean_reward = mean(reward)) %>%
+  group_by(trt2) %>%
+  dplyr::arrange(desc(trt2)) 
+
+# summary for paper
+s3 %>%
+  dplyr::summarize( mean_ = mean(mean_reward), 
+                    reward_sd = sd(mean_reward), n = n()) %>%
+  mutate(se = reward_sd / sqrt(n))
+
+
+# total number of trials for each treatment
+tapply((grepl("[tT]", as.character(sl$rewTF))), INDEX= sl$trt, length)
+
+# total number of rewards per treatment
+tapply((grepl("[tT]", as.character(sl$rewTF))), 
+       INDEX= sl$trt, FUN = function(x) sum(x))
+
+# total number of trials that were unrewarded per treatment
+tapply((grepl("[tT]", as.character(sl$rewTF))), 
+       INDEX= sl$trt, FUN = function(x) sum(!x))
+
+
+# calculate avg freq & SE
+se <- function(x) {
+  sd(x) /  sqrt(length(x))
+}
+
+
+s4 = s2 %>%
+  group_by(beeColHive, trt2) %>%
+  dplyr::summarize(mean_freq = mean(freq), 
+                   sd_freq = sd(freq)) %>%
+  group_by(trt2) %>%
+  dplyr::arrange(desc(trt2)) %>%
+  filter(trt2 != "full") %>%
+  ungroup() %>%
+  mutate(trt3 = plyr::mapvalues(.$trt2, from = c("full_2", "high", "low"), 
+                        to = c("Full range\n(220 - 450 Hz)", 
+                               "High range\n(340 - 390 Hz)", 
+                               "Low range\n(220 - 330 Hz)")))
+
+
+# plot bee size in the groups
+sl_sum <- sl %>%
+  dplyr::select(beeColHive, trt2, IT_imputed) %>%
+  distinct(beeColHive, trt2, .keep_all = TRUE) 
+
+sl_sum %>%
+  group_by(trt2) %>%
+  summarize(counts = n())
+
+sl %>% nrow
+
+sl %>% group_by(beeColHive) %>%
+  summarize(n()) %>%
+  nrow()
+
+sl %>% group_by(trt2) %>%
+  summarize(count= n())
+
+s2 <- sl_sum  %>%
+  filter(trt2 != "full") %>%
+  mutate(trt3 = plyr::mapvalues(.$trt2, from = c("full_2", "high", "low"), 
+                        to = c("Full range\n(220 - 450 Hz)", 
+                               "High range\n(340 - 390 Hz)", 
+                               "Low range\n(220 - 330 Hz)")))
+# join data  for plotting
+s44 <- full_join(s2, s4)
+```
+
+# Plot rewards over time for each bee
+# refref here
+
+
+```{r}
+options(digits.secs=3)   
+
+# calculate time differences
+str_sub(sl$datetime, 21, 21) <- "."
+sl <- sl %>%
+  mutate(time_pos = as.POSIXct(datetime, format = "%Y_%m_%d__%H_%M_%OS" )) %>%
+  group_by(beeColHive, trialNum) %>%
+  arrange(beeColHive, trialNum, datetime) %>%
+  mutate(time_diff = as.numeric(time_pos-lag(time_pos), units = 'secs')) %>%
+  group_by(beeColHive) %>% 
+  mutate(timeCumul = cumsum(replace_na(time_diff, replace = 0))) 
+
+#View(sl[sl$beeColHive == "orange.3", ])
+
+timeDiff = ggplot(sl[sl$rewTF, ], aes(x = timeCumul, y = time_diff, color = trt)) + 
+  geom_point(alpha= 0.2, stroke = 0, aes( shape = trt )) + 
+  facet_wrap(~beeColHive, ncol = 8, scales = "free_x") + 
+  #ylim(c(0,5)) +
+  #scale_x_continuous(breaks = seq(0, 10, 2)) +
+  scale_color_viridis_d(name = "",
+                        option = "magma", begin = 0.3,
+                        end = 0.80,
+                        guide = guide_legend(override.aes =
+                                               list(alpha = 1, size = 4))) +
+  theme_classic() +
+  # theme(strip.background = element_blank(),
+  #       strip.text = element_blank(),
+  #       panel.border = element_rect(colour = "grey40",
+  #                                   fill=NA, size=0.5),
+  #       legend.position = 'top') +
+  scale_shape_manual(name = "", values = c(16,17,15)) +
+  labs(y = "Time between rewards (sec)", x = "Cumulative experience in experimental chamber (sec)") + 
+  scale_y_log10()
+
+timeDiff
+
+#View(sl[sl$beeColHive == "orange.3",])
+
+# supplementary figure for paper
+# ggsave(file.path(figDir, "freq_amp.tiff"), width = 6.5, 
+#        height = 3, units = "in", dpi = 500)
+```
+
+## Plot rate of pollen collection
+
+```{r}
+
+sl <- sl %>%
+  group_by(beeColHive) %>%
+  arrange(beeColHive, datetime) %>%
+  mutate(cumuPol =  cumsum(rewTF))
+
+fta <- sl %>% 
+  filter(trialNum == 1) %>% 
+  dplyr::group_by(beeColHive) %>%
+  dplyr::summarise(initialFreq = mean(freq)) %>%
+  full_join(sl) %>%
+  mutate(freqDiff = freq- initialFreq) %>%
+  filter(beeColHive %in% .$beeColHive[.$trialNum > 1]) %>%
+  dplyr::arrange(trt) 
+
+cc <- fta %>%
+  ungroup() %>%
+  filter(trialNum > 1) %>%
+  group_by(beeColHive) %>%
+  dplyr::summarize(meanFreq = mean(freq))
+
+
+
+bb <- fta %>%
+  dplyr::select(beeColHive, trt, trialNum, initialFreq) %>%
+  dplyr::filter(trialNum == 2 | trialNum == 3) %>%
+  group_by(beeColHive) %>%
+  slice(1:1) %>%
+  full_join(cc) %>%
+  mutate(freqDiff = initialFreq - meanFreq) %>%
+  dplyr::arrange(trt, desc(freqDiff))
+
+fta <- fta %>%
+  mutate(beeColHive = factor(beeColHive, levels = bb$beeColHive)) %>% 
+  mutate(t5 = recode(.$trt, "full" = "Full range\n(220 - 450 Hz)", 
+                       "high" = "High range\n(340 - 390 Hz)", 
+                       "low" = "Low range\n(220 - 330 Hz)")) %>%
+  filter(trialNum <= 10)
+
+s44 = fta %>%
+  group_by(trialNum, beeColHive, t5) %>%
+  dplyr::summarise(meanFreq2 = mean(freq))
+s44
+
+pollenPlot = ggplot(fta[fta$rewTF,], aes(x = timeCumul / 60 , y = cumuPol, color = t5)) + 
+  geom_step(size = 0.5) + 
+  facet_wrap(~beeColHive, ncol = 8) + 
+  scale_color_viridis_d(name = "",
+                        option = "magma", begin = 0.3,
+                        end = 0.80,
+                        guide = guide_legend(override.aes =
+                                               list(alpha = 1, size = 2))) +
+  theme_classic() +
+  theme(#strip.background = element_blank(),
+    text = element_text(size = 10), 
+    axis.title = element_text(size = 8), 
+    axis.text = element_text(size = 6),
+    strip.text = element_blank(),
+    panel.border = element_rect(colour = "grey40",
+                            fill=NA, size=0.5),
+    axis.line = element_blank(),
+    axis.ticks = element_line(size = 0.3),
+  legend.position = 'top') +
+  scale_shape_manual(name = "", values = c(16,17,15)) +
+  labs(y = "Cumulative number of pollen rewards", x = "Cumulative time in experimental chamber (min)") + 
+  scale_x_continuous(breaks = c(0, 25, 50, 75, 100), labels = c("", 25, 50, 75, ""))# 
+
+pollenPlot
+
+# supplementary figure for paper
+ggsave(file.path(figDir, "CumulativePollen.tiff"), 
+       width = 6.5,
+       height = 6, units = "in", dpi = 500)
+
+ggsave(file.path(figDir, "CumulativePollen.png"), 
+       width = 6.5,
+       height = 6, units = "in", dpi = 500)
+
+
+timeDiff = ggplot(fta[fta$rewTF, ], aes(x = timeCumul / 60, y = time_diff, color = t5)) + 
+  geom_point(alpha= 0.2, stroke = 0, aes( shape = t5 )) + 
+  facet_wrap(~beeColHive, ncol = 8) + 
+  scale_color_viridis_d(name = "",
+                        option = "magma", begin = 0.3,
+                        end = 0.80,
+                        guide = guide_legend(override.aes =
+                                               list(alpha = 1, size = 3))) +
+  theme_classic() +
+  theme(#strip.background = element_blank(),
+    text = element_text(size = 10), 
+    axis.title = element_text(size = 8), 
+    axis.text = element_text(size = 6),
+    strip.text = element_blank(),
+    panel.border = element_rect(colour = "grey40",
+                            fill=NA, size=0.5),
+    axis.line = element_blank(),
+    axis.ticks = element_line(size = 0.3),
+  legend.position = 'top') +
+  scale_shape_manual(name = "", values = c(16,17,15)) +
+  labs(y = "Time between rewards (sec)", x = "Cumulative experience in experimental chamber (min)") + 
+  scale_y_log10() + 
+  scale_x_continuous(breaks = c(0, 25, 50, 75, 100), labels = c("", 25, 50, 75, ""))# 
+
+timeDiff
+
+# supplementary figure for paper
+ggsave(file.path(figDir, "TimeBWRewards.tiff"), plot = timeDiff,
+       width = 6.5,
+       height = 6, units = "in", dpi = 500)
+
+ggsave(file.path(figDir, "TimeBWRewards.tiff"),  plot = timeDiff,
+       width = 6.5,
+       height = 6, units = "in", dpi = 500)
+
+#View(sl[sl$beeColHive == "orange.3",])
+
+# supplementary figure for paper
+# ggsave(file.path(figDir, "freq_amp.tiff"), width = 6.5, 
+#        height = 3, units = "in", dpi = 500)
+```
+
+
+
+
+# print session info
+```{r}
+sessionInfo()
+```
+
