@@ -286,18 +286,19 @@ s44 = fta %>%
 s44
 
 pollenPlot = ggplot(fta[fta$rewTF,], aes(x = timeCumul / 60 , y = cumuPol, color = t5)) + 
-  geom_step(size = 0.5) + 
+  geom_step(size = 0.8) + 
   facet_wrap(~beeColHive, ncol = 8) + 
   scale_color_viridis_d(name = "",
                         option = "magma", begin = 0.3,
                         end = 0.80,
                         guide = guide_legend(override.aes =
-                                               list(alpha = 1, size = 2))) +
+                                               list(alpha = 1, size = 1.5))) +
   theme_classic() +
   theme(#strip.background = element_blank(),
-    text = element_text(size = 10), 
-    axis.title = element_text(size = 8), 
-    axis.text = element_text(size = 6),
+    # text = element_text(size = 6), 
+    # axis.title = element_text(size = 6), 
+    # axis.text = element_text(size = 5),
+    # legend.text = element_text(size = 6),
     strip.text = element_blank(),
     panel.border = element_rect(colour = "grey40",
                             fill=NA, size=0.5),
@@ -312,12 +313,12 @@ pollenPlot
 
 # supplementary figure for paper
 ggsave(file.path(figDir, "CumulativePollen.tiff"), 
-       width = 6.5,
-       height = 6, units = "in", dpi = 500)
+       width = 6.5*1.5,
+       height = 4*1.5, units = "in", dpi = 500)
 
 ggsave(file.path(figDir, "CumulativePollen.png"), 
-       width = 6.5,
-       height = 6, units = "in", dpi = 500)
+       width = 6.5*1.5,
+       height = 4*1.5, units = "in", dpi = 500)
 
 
 timeDiff = ggplot(fta[fta$rewTF, ], aes(x = timeCumul / 60, y = time_diff, color = t5)) + 
@@ -330,10 +331,11 @@ timeDiff = ggplot(fta[fta$rewTF, ], aes(x = timeCumul / 60, y = time_diff, color
                                                list(alpha = 1, size = 3))) +
   theme_classic() +
   theme(#strip.background = element_blank(),
-    text = element_text(size = 10), 
-    axis.title = element_text(size = 8), 
-    axis.text = element_text(size = 6),
-    strip.text = element_blank(),
+    # text = element_text(size = 8), 
+    # axis.title = element_text(size = 8), 
+    # axis.text = element_text(size = 6),
+    # strip.text = element_blank(),
+    # legend.text = element_text(size = 8)
     panel.border = element_rect(colour = "grey40",
                             fill=NA, size=0.5),
     axis.line = element_blank(),
@@ -348,12 +350,12 @@ timeDiff
 
 # supplementary figure for paper
 ggsave(file.path(figDir, "TimeBWRewards.tiff"), plot = timeDiff,
-       width = 6.5,
-       height = 6, units = "in", dpi = 500)
+       width = 6.5*1.5,
+       height = 4*1.5, units = "in", dpi = 500)
 
 ggsave(file.path(figDir, "TimeBWRewards.tiff"),  plot = timeDiff,
-       width = 6.5,
-       height = 6, units = "in", dpi = 500)
+       width = 6.5*1.5,
+       height = 4*1.5, units = "in", dpi = 500)
 
 #View(sl[sl$beeColHive == "orange.3",])
 

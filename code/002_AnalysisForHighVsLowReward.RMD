@@ -62,17 +62,21 @@ sl <- sl %>%
   # make sure all bee colors are lowercase
   mutate(beeCol =  tolower(beeCol)) %>%
   
-  # color + hive is an ID var 
-  mutate(beeColHive = interaction(beeCol, hive), 
-         colNum = paste(beeCol, hive, sep = "_")) %>%
-  
-  # fix IT for orange.3
-  mutate(IT = replace(IT, beeColHive == "orange.3", 3.99)) %>%
-  
   # remove trials that contain errors
   filter(!(beeCol == "whitepink" & trialNum == 3)) %>% 
   filter(!(beeCol == "limepurple" & trialNum == 3)) %>% 
   filter(!(beeCol == "orange" & hive == 5)) %>%
+  
+  # color + hive is an ID var 
+  mutate(beeColHive = interaction(beeCol, hive), 
+         colNum = paste(beeCol, hive, sep = "_")) %>%
+  mutate(beeColHive = factor(as.character(.$beeColHive), 
+                             levels = sort(unique(as.character(.$beeColHive))))) %>%
+  
+  # fix IT for orange.3
+  mutate(IT = replace(IT, beeColHive == "orange.3", 3.99)) %>%
+  
+
   
 
   # convert hive to factor
@@ -84,7 +88,6 @@ sl <- sl %>%
   # divide amplitud by 2
   mutate(amp_acc2 = amp_acc / 2) %>%
   mutate(trialNum0 = trialNum - 1)
-
 
 
 # calculate mean IT span (for centering)
@@ -113,8 +116,7 @@ sl <- sl %>%
 ```{r}
 # std dev for rewards by treatment
 s2 = sl %>%
-  mutate(beeColHive = interaction(beeCol, hive), 
-         reward= grepl(pattern = "t", x = .$rewTF, ignore.case = TRUE)*1) 
+  mutate(reward= grepl(pattern = "t", x = .$rewTF, ignore.case = TRUE)*1) 
 
 
 s3 = s2 %>%
@@ -128,6 +130,33 @@ s3 %>%
   dplyr::summarize( mean_ = mean(mean_reward), 
                     reward_sd = sd(mean_reward), n = n()) %>%
   mutate(se = reward_sd / sqrt(n))
+
+
+# calculate bootstrap CI for proportion of time rewarded
+bootPercDF <- s3 %>% ungroup() %>% dplyr::select(trt2, mean_reward)
+
+bootFun <- function(df = bootPercDF){
+  df <- sample_n(df, size = nrow(df), replace = TRUE)
+  bootSamp = tapply(df$mean_reward, INDEX = df$trt2, mean)
+  if(nrow(bootSamp) != 4){
+      return(NA)
+  }
+  return(bootSamp)
+}
+
+set.seed(123)
+namesBelow = bootFun(bootPercDF)
+
+
+booSamps <- replicate(10000, bootFun(bootPercDF)) 
+
+bs2 <- do.call(rbind.data.frame, booSamps) %>% na.omit()
+colnames(bs2) = names(namesBelow)
+
+
+# 95% bootstrap CI for mean proportion of
+apply(bs2, MARGIN = 2, quantile, c(0.025, 0.975)) %>% round(digits = 3) 
+
 
 
 # total number of trials for each treatment
@@ -201,6 +230,87 @@ ggplot(s44, aes(x = trt3,  y= IT_imputed)) +
 # supplementary figure for paper
 ggsave(file.path(figDir, "beeSize_exp1.tiff"), 
        width = 6, height = 4, units = "in", dpi = 500)
+
+
+# calculate num sonications for bees in the first trial
+
+sft <- sl %>%
+  distinct(beeColHive, trt2) 
+
+
+
+
+ff <- tapply(sft$trt2, INDEX = sft$beeColHive, FUN = function(x){
+  paste(sort(unique(x)), collapse = "__")
+  })
+
+
+f2 <- data.frame(allTrts = ff, beeColHive = names(ff), row.names = 1:length(ff)) %>%
+  droplevels() %>%
+  mutate(beeColHive = factor(as.character(.$beeColHive), levels = sort(unique(.$beeColHive))))
+
+f3 <- full_join(f2, sl, by = "beeColHive")
+
+
+f4 <- f3 %>% group_by(beeColHive, allTrts) %>%
+  filter(trialNum == 1) %>%
+  summarize(numVisits = n()) %>%
+  mutate(FirstTrialOnly = allTrts == "full") %>%
+  ungroup() %>%
+  mutate(FTA = recode(as.character(.$FirstTrialOnly), 
+                      "TRUE" = "Completed only 1 Trial", 
+                      "FALSE" = "Completed more than 1 trial"))
+
+
+# calculate bootstrap CI for number of visits
+bootDF <- f4 %>% ungroup() %>% dplyr::select(FTA, numVisits) 
+bootFun <- function(df = bootDF){
+  df <- sample_n(df, size = nrow(df), replace = TRUE)
+  return(tapply(df$numVisits, INDEX = df$FTA, median))
+}
+
+set.seed(123)
+booSamps <- replicate(10000, bootFun(bootDF))
+
+# 95% bootstrap CI for median num of visits
+apply(booSamps, MARGIN = 1, quantile, c(0.025, 0.975)) %>% round(digits = 1)
+
+
+f4 %>% group_by(FTA) %>%
+  mutate(numLessThanThirty = numVisits < 30) %>%
+  summarize(n30 = sum(numLessThanThirty))
+
+
+f4 %>%
+  ggplot(aes(x = allTrts, y = numVisits)) + 
+      geom_boxplot()  + 
+  geom_point()
+
+
+f4 %>%
+  ggplot(aes(x = FirstTrialOnly, y = numVisits)) + 
+    geom_boxplot() + 
+    geom_point() 
+
+f4 %>%
+  filter(numVisits > 30) %>%
+  ggplot(aes(x = FirstTrialOnly, y = numVisits)) + 
+    geom_boxplot() + 
+    geom_point() 
+
+
+f4 %>% group_by(FirstTrialOnly) %>%
+  summarize(num_individuals = n(), 
+            mean_num_visits = mean(numVisits), 
+            se_num = se(numVisits), 
+            medianNum = median(numVisits))
+
+f4 %>% group_by(allTrts) %>%
+  summarize(num_individuals = n(), 
+            mean_num_visits = mean(numVisits), 
+            se_num = se(numVisits))
+
+
 ```
 
 # Plot frequency vs. acceleration
