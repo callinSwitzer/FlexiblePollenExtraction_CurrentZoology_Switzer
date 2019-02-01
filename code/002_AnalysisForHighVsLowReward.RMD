@@ -50,19 +50,17 @@ print(R.version)
 
 ```{r, message=FALSE}
 # read in data
-sl <- read_csv(file.path(dataDir, '01_CombinedTrials_cleaned.csv'))
+sl <- read_csv(file.path(dataDir, '01_InstrumentalLearning_annotated.csv'))
 
 # clean data
 sl <- sl %>%
-  # gets rid of the copious warnings
-  mutate(timeSinceStart = NA, 
-         timeSinceLastBuzz = NA, 
-         buzzesSinceReward = NA) %>%
-  
+  # remove notes
+  dplyr::select(-notes) %>%
+
   # make sure all bee colors are lowercase
   mutate(beeCol =  tolower(beeCol)) %>%
   
-  # remove trials that contain errors
+  # remove trials that contain errors (labeled in dataset as "discard")
   filter(!(beeCol == "whitepink" & trialNum == 3)) %>% 
   filter(!(beeCol == "limepurple" & trialNum == 3)) %>% 
   filter(!(beeCol == "orange" & hive == 5)) %>%

@@ -26,8 +26,7 @@ ipak <- function(pkg){
      sapply(pkg, require, character.only = TRUE)
 }
 
-packages <- c("plyr", "tidyverse", 'lme4', 'sjPlot', 
-              "multcomp", "cowplot")
+packages <- c("tidyverse")
 ipak(packages)
 
 # set ggplot theme
@@ -47,34 +46,29 @@ print(R.version)
 
 ```{r, message=FALSE}
 # read in data
-sl <- read_csv(file.path(dataDir, '01_CombinedTrials_cleaned.csv'))
+sl <- read_csv(file.path(dataDir, '01_InstrumentalLearning_annotated.csv'))
 
 # clean data
 sl <- sl %>%
-  # gets rid of the copious warnings
-  mutate(timeSinceStart = NA, 
-         timeSinceLastBuzz = NA, 
-         buzzesSinceReward = NA) %>%
+  dplyr::select(-notes) %>%
   
   # make sure all bee colors are lowercase
   mutate(beeCol =  tolower(beeCol)) %>%
   
-  # fix orange.5, which should be orange.3
-  #mutate(hive = ifelse(hive == "5" & beeCol == "orange", "3", hive)) %>%
+  # remove trials that contain errors
+  filter(!(beeCol == "whitepink" & trialNum == 3)) %>% 
+  filter(!(beeCol == "limepurple" & trialNum == 3)) %>% 
+  filter(!(beeCol == "orange" & hive == 5)) %>%
   
   # color + hive is an ID var 
   mutate(beeColHive = interaction(beeCol, hive), 
          colNum = paste(beeCol, hive, sep = "_")) %>%
+  mutate(beeColHive = factor(as.character(.$beeColHive), 
+                             levels = sort(unique(as.character(.$beeColHive))))) %>%
   
   # fix IT for orange.3
   mutate(IT = replace(IT, beeColHive == "orange.3", 3.99)) %>%
   
-  # remove two trials that contain errors
-  filter(!(beeCol == "whitepink" & trialNum == 3)) %>%
-  filter(!(beeCol == "limepurple" & trialNum == 3)) %>%
- # filter(!(beeColHive == "orange.3" & trialNum == 1))
-  
-
   # convert hive to factor
   mutate(hive = as.factor(hive),
          trt2  = ifelse(trt == 'full' & trialNum > 1, 
@@ -113,8 +107,7 @@ sl <- sl %>%
 ```{r}
 # std dev for rewards by treatment
 s2 = sl %>%
-  mutate(beeColHive = interaction(beeCol, hive), 
-         reward= grepl(pattern = "t", x = .$rewTF, ignore.case = TRUE)*1) 
+  mutate(reward= grepl(pattern = "t", x = .$rewTF, ignore.case = TRUE)*1) 
 
 
 s3 = s2 %>%
@@ -191,8 +184,6 @@ s44 <- full_join(s2, s4)
 ```
 
 # Plot rewards over time for each bee
-# refref here
-
 
 ```{r}
 options(digits.secs=3)   
@@ -206,8 +197,6 @@ sl <- sl %>%
   mutate(time_diff = as.numeric(time_pos-lag(time_pos), units = 'secs')) %>%
   group_by(beeColHive) %>% 
   mutate(timeCumul = cumsum(replace_na(time_diff, replace = 0))) 
-
-#View(sl[sl$beeColHive == "orange.3", ])
 
 timeDiff = ggplot(sl[sl$rewTF, ], aes(x = timeCumul, y = time_diff, color = trt)) + 
   geom_point(alpha= 0.2, stroke = 0, aes( shape = trt )) + 
@@ -231,7 +220,6 @@ timeDiff = ggplot(sl[sl$rewTF, ], aes(x = timeCumul, y = time_diff, color = trt)
 
 timeDiff
 
-#View(sl[sl$beeColHive == "orange.3",])
 
 # supplementary figure for paper
 # ggsave(file.path(figDir, "freq_amp.tiff"), width = 6.5, 
@@ -253,16 +241,17 @@ fta <- sl %>%
   dplyr::summarise(initialFreq = mean(freq)) %>%
   full_join(sl) %>%
   mutate(freqDiff = freq- initialFreq) %>%
-  filter(beeColHive %in% .$beeColHive[.$trialNum > 1]) %>%
+  
+  #keep bees that completed more than the first trial
+  filter(beeColHive %in% .$beeColHive[.$trialNum > 1]) %>% 
   dplyr::arrange(trt) 
+
 
 cc <- fta %>%
   ungroup() %>%
   filter(trialNum > 1) %>%
   group_by(beeColHive) %>%
   dplyr::summarize(meanFreq = mean(freq))
-
-
 
 bb <- fta %>%
   dplyr::select(beeColHive, trt, trialNum, initialFreq) %>%
@@ -278,7 +267,8 @@ fta <- fta %>%
   mutate(t5 = recode(.$trt, "full" = "Full range\n(220 - 450 Hz)", 
                        "high" = "High range\n(340 - 390 Hz)", 
                        "low" = "Low range\n(220 - 330 Hz)")) %>%
-  filter(trialNum <= 10)
+  filter(trialNum <= 10) %>%
+  filter(!is.na(freq))
 
 s44 = fta %>%
   group_by(trialNum, beeColHive, t5) %>%
@@ -357,14 +347,318 @@ ggsave(file.path(figDir, "TimeBWRewards.tiff"),  plot = timeDiff,
        width = 6.5*1.5,
        height = 4*1.5, units = "in", dpi = 500)
 
-#View(sl[sl$beeColHive == "orange.3",])
-
-# supplementary figure for paper
-# ggsave(file.path(figDir, "freq_amp.tiff"), width = 6.5, 
-#        height = 3, units = "in", dpi = 500)
 ```
 
 
+# Wright's Learning Curve
+https://maaw.info/LearningCurveSummary.htm
+
+```{r}
+# Y = cumulative average time per reward
+# X = cumulative number of units produced
+
+wlc <- fta %>%
+  group_by(beeColHive) %>%
+  arrange(beeColHive, datetime) %>%
+  mutate(attemptNum = seq(n())) %>%
+  filter(rewTF) %>%
+  group_by(beeColHive) %>%
+  arrange(beeColHive, datetime) %>%
+  mutate(rewNum2 = seq(n())) %>%
+  mutate(cumulativeAvg = timeCumul / rewNum2) %>%
+  mutate(cumAvgAttempts = attemptNum / rewNum2) %>%
+  dplyr::select(beeColHive, datetime, time_diff, trialNum,
+                timeCumul, rewTF, t5, rewNum2, cumulativeAvg,
+                cumAvgAttempts, attemptNum)
+
+
+PollenRate <-  ggplot(wlc, aes(x = rewNum2, y = attemptNum, color = t5)) + 
+  geom_abline(intercept = 0, slope = 1, lty = 2, col = "grey", size = 0.2) +
+  geom_point(alpha= 0.4, size = 0.8, stroke = 0, aes( shape = t5 )) + 
+  facet_wrap(~beeColHive, ncol = 8) + 
+  scale_color_viridis_d(name = "",
+                        option = "magma", begin = 0.3 ,
+                        end = 0.80,
+                        guide = guide_legend(override.aes =
+                                               list(alpha = 1, size = 4))) +
+  theme_classic() +
+  theme(strip.text = element_blank(),
+    panel.border = element_rect(colour = "grey40",
+                            fill=NA, size=0.5),
+    axis.line = element_blank(),
+    axis.ticks = element_line(size = 0.3),
+    axis.text = element_text(color = "black"),
+  legend.position = 'top') +
+  labs(y = "Cumulative number of sonications", 
+       x = "Cumulative number of rewards") + 
+  scale_x_log10(limits = c(1, 3500)) + 
+  scale_y_log10(limits = c(1, 3500)) + 
+  scale_shape_manual(name = "", values = c(16, 17, 15))
+
+ 
+PollenRate
+
+
+# supplementary figure for paper
+ggsave(file.path(figDir, "PollenRate.tiff"), plot = PollenRate,
+       width = 6.5*1.5,
+       height = 4*1.5, units = "in", dpi = 500)
+
+ggsave(file.path(figDir, "PollenRate.png"),  plot = PollenRate,
+       width = 6.5*1.5,
+       height = 4*1.5, units = "in", dpi = 500)
+
+
+
+
+wlc <- wlc %>% filter(cumulativeAvg != 0, 
+         !is.na(time_diff))
+```
+
+```{r}
+
+Wright_LC <-  ggplot(wlc, aes(y = cumulativeAvg, x = rewNum2, color = t5)) + 
+  geom_line(alpha= 1, size = 0.8) + 
+  facet_wrap(~beeColHive, ncol = 8) + 
+  scale_color_viridis_d(name = "",
+                        option = "magma", begin = 0.3,
+                        end = 0.80,
+                        guide = guide_legend(override.aes =
+                                               list(alpha = 1, size = 3))) +
+  theme_classic() +
+  theme(strip.text = element_blank(),
+    panel.border = element_rect(colour = "grey40",
+                            fill=NA, size=0.5),
+    axis.line = element_blank(),
+    axis.ticks = element_line(size = 0.3),
+  legend.position = 'top') +
+  scale_y_log10() + 
+  scale_x_log10() + 
+  labs(y = "Cumulative time between pollen rewards", 
+       x = "Cumulative number of rewards")
+
+Wright_LC
+
+```
+
+
+# Calculations for Wright's learning curve
+## based on attempt number (rather than time)
+
+```{r}
+# this method is correct for wright's learning curve
+wlc2 <- fta %>%
+  filter(trt != "full") %>%
+  group_by(beeColHive) %>%
+  arrange(beeColHive, datetime) %>%
+  mutate(attemptNum = seq(n())) %>%
+  filter(rewTF) %>%
+  group_by(beeColHive) %>%
+  arrange(beeColHive, datetime) %>%
+  mutate(rewNum2 = seq(n())) %>%
+  mutate(cumAvgAttempts = attemptNum / rewNum2) %>%
+  dplyr::select(beeColHive, datetime, time_diff, trialNum,
+                timeCumul, rewTF, t5, rewNum2, 
+                cumAvgAttempts, attemptNum) 
+
+
+# add extra levels so the plots align with other supp figs
+wlc_extra = wlc2[1:2, ]
+wlc_extra$cumAvgAttempts = 9999
+wlc_extra$beeColHive = c("A", "B")
+wlc3 <- rbind(wlc2, wlc_extra) %>% ungroup() %>%
+  mutate(beeColHive = factor(beeColHive, levels = c("A", "B", levels(wlc$beeColHive))))
+
+
+Wright_LC2 <-  ggplot(wlc3, aes(y = cumAvgAttempts, x = rewNum2, color = t5)) + 
+  geom_line(alpha= 1, size = 0.8, aes(group = beeColHive)) + 
+  facet_wrap(~beeColHive, ncol = 8) + 
+  scale_color_viridis_d(name = "",
+                        option = "magma", begin = (0.3 + 0.8)/2 ,
+                        end = 0.80,
+                        guide = guide_legend(override.aes =
+                                               list(alpha = 1, size = 2))) +
+  theme_classic() +
+  theme(strip.text = element_blank(),
+    panel.border = element_rect(colour = "grey40",
+                            fill=NA, size=0.5),
+    axis.line = element_blank(),
+    axis.ticks = element_line(size = 0.3),
+    axis.text = element_text(color = "black"),
+  legend.position = 'top') +
+  labs(y = "Cumulative average number of \nsonications between pollen rewards", 
+       x = "Cumulative number of rewards") + 
+  scale_y_log10(limits =  c(1, 50)) + 
+  scale_x_log10() 
+Wright_LC2
+
+
+# supplementary figure for paper
+ggsave(file.path(figDir, "LearningCurve_Wright.tiff"), plot = Wright_LC2,
+       width = 6.5*1.5,
+       height = 4*1.5*2/3, units = "in", dpi = 500)
+
+ggsave(file.path(figDir, "LearningCurve_Wright.png"),  plot = Wright_LC2,
+       width = 6.5*1.5,
+       height = 4*1.5*2/3, units = "in", dpi = 500)
+
+
+# plot on non-log scale
+Wright_LC2_linearScale <-  ggplot(wlc3, aes(y = cumAvgAttempts, x = rewNum2, color = t5)) + 
+  geom_line(alpha= 1, size = 0.8, aes(group = beeColHive)) + 
+  facet_wrap(~beeColHive, ncol = 8) + 
+  scale_color_viridis_d(name = "",
+                        option = "magma", begin = (0.3 + 0.8)/2 ,
+                        end = 0.80,
+                        guide = guide_legend(override.aes =
+                                               list(alpha = 1, size = 2))) +
+  theme_classic() +
+  theme(strip.text = element_blank(),
+    panel.border = element_rect(colour = "grey40",
+                            fill=NA, size=0.5),
+    axis.line = element_blank(),
+    axis.ticks = element_line(size = 0.3),
+    axis.text = element_text(color = "black"),
+  legend.position = 'top') +
+  labs(y = "Cumulative average number of \nsonications between pollen rewards", 
+       x = "Cumulative number of rewards")+ 
+  ylim(c(0, 50))
+Wright_LC2_linearScale
+
+
+```
+
+
+```{r, eval = FALSE}
+# This method is wrong:
+# this is how I calculated it the first time
+
+wlc4 <- wlc3 %>% group_by(beeColHive) %>%
+  arrange(datetime) %>%
+  mutate(attemptDiff = as.numeric(attemptNum-lag(attemptNum))) %>%
+  filter(!is.na(attemptDiff)) %>%
+    mutate(CumulativeDiffs = cumsum(attemptDiff),
+      cumAvgBuzzesBWRw = CumulativeDiffs / rewNum2)
+
+
+Attempt_Diffs <-  ggplot(wlc4, aes(y = attemptDiff, x = rewNum2, color = t5)) + 
+  geom_point(alpha= 1, size = 1, aes(group = beeColHive)) + 
+  facet_wrap(~beeColHive, ncol = 8) + 
+  scale_color_viridis_d(name = "",
+                        option = "magma", begin = (0.3 + 0.8)/2 ,
+                        end = 0.80,
+                        guide = guide_legend(override.aes =
+                                               list(alpha = 1, size = 3))) +
+  theme_classic() +
+  theme(strip.text = element_blank(),
+    panel.border = element_rect(colour = "grey40",
+                            fill=NA, size=0.5),
+    axis.line = element_blank(),
+    axis.ticks = element_line(size = 0.3),
+    axis.text = element_text(color = "black"),
+  legend.position = 'top') +
+  labs(y = "Number of sonications between pollen rewards", 
+       x = "Cumulative number of rewards")   + 
+  ylim(c(0, 100))
+Attempt_Diffs
+
+
+Attempt_LC2 <-  ggplot(wlc4, aes(y = cumAvgBuzzesBWRw, x = rewNum2, color = t5)) + 
+  geom_point(alpha= 0.3, size = 0.8, aes(group = beeColHive)) + 
+  facet_wrap(~beeColHive, ncol = 8) + 
+  scale_color_viridis_d(name = "",
+                        option = "magma", begin = (0.3 + 0.8)/2 ,
+                        end = 0.80,
+                        guide = guide_legend(override.aes =
+                                               list(alpha = 1, size = 3))) +
+  theme_classic() +
+  theme(strip.text = element_blank(),
+    panel.border = element_rect(colour = "grey40",
+                            fill=NA, size=0.5),
+    axis.line = element_blank(),
+    axis.ticks = element_line(size = 0.3),
+    axis.text = element_text(color = "black"),
+  legend.position = 'top') +
+  labs(y = "Cumulative avg Number of sonications between pollen rewards", 
+       x = "Cumulative number of rewards")  + 
+  xlim(c(0, 64))
+Attempt_LC2
+
+```
+
+
+# Make a plot with data from with website to see if it matches
+# my calculations
+
+```{r, eval = FALSE}
+# what would an 80% Learning curve look like (from website)
+# Y = cumulative average time per reward
+# X = cumulative number of units produced
+rewardNum <- c(1,2,3,4)
+buzzesbwRewards <- c(100, 60, 50, 46)
+cumulativeTime = cumsum(buzzesbwRewards)
+cumAvgAttempts = cumulativeTime/rewardNum
+plot(y = cumAvgAttempts, x = rewardNum, type = "b")
+plot(log(cumAvgAttempts)~log(rewardNum), type = 'b')
+lm(log(cumAvgAttempts) ~ log(rewardNum))
+plot(lm(log(cumAvgAttempts) ~ log(rewardNum))$residuals)
+
+# practice calculations to check work above
+attemptNum = 1:sum(buzzesbwRewards)
+rewTF = rep(0, length(attemptNum))
+rewTF[cumsum(buzzesbwRewards)] = 1
+
+fakeDF <- data.frame(attemptNum, rewTF)
+fakeDF_2 <- fakeDF %>%
+  mutate(attemptNum = seq(n())) %>%
+  filter(rewTF == 1) %>%
+  mutate(rewNum2 = seq(n())) %>%
+  mutate(cumAvgAttempts = attemptNum / rewNum2) 
+
+fakeDF_2
+
+ggplot(fakeDF_2, aes(x = rewNum2, y = cumAvgAttempts)) + 
+  geom_line() + 
+  geom_point()
+
+
+```
+
+
+```{r}
+# what would an 80% Learning curve look like (from website)
+# Y = cumulative average time per reward
+# X = cumulative number of units produced
+rewardNum <- c(1,2,3,4,5,6,7,8,9,10)
+buzzesbwRewards <- c(100, 200, 200, 200, 200, 
+                     200, 200, 200, 200, 200)
+cumulativeTime = cumsum(buzzesbwRewards)
+cumAvgAttempts = cumulativeTime/rewardNum
+plot(y = cumAvgAttempts, x = rewardNum, type = "b")
+plot(log(cumAvgAttempts)~log(rewardNum), type = 'b')
+lm(log(cumAvgAttempts) ~ log(rewardNum))
+plot(lm(log(cumAvgAttempts) ~ log(rewardNum))$residuals)
+
+# practice calculations to check work above
+attemptNum = 1:sum(buzzesbwRewards)
+rewTF = rep(0, length(attemptNum))
+rewTF[cumsum(buzzesbwRewards)] = 1
+
+fakeDF <- data.frame(attemptNum, rewTF)
+fakeDF_2 <- fakeDF %>%
+  mutate(attemptNum = seq(n())) %>%
+  filter(rewTF == 1) %>%
+  mutate(rewNum2 = seq(n())) %>%
+  mutate(cumAvgAttempts = attemptNum / rewNum2) 
+
+fakeDF_2
+
+ggplot(fakeDF_2, aes(x = rewNum2, y = cumAvgAttempts)) + 
+  geom_line() + 
+  geom_point()
+
+
+```
 
 
 # print session info

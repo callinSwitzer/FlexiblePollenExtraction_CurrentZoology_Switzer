@@ -218,7 +218,7 @@ dataDir &lt;- file.path(getwd(), &quot;data&quot;)
 figDir &lt;- file.path(getwd(), &quot;figures&quot;)
 
 print(paste(&quot;last run &quot;, Sys.time()))</code></pre>
-<pre><code>## [1] &quot;last run  2019-01-30 15:58:59&quot;</code></pre>
+<pre><code>## [1] &quot;last run  2019-01-31 14:19:02&quot;</code></pre>
 <pre class="r"><code>print(R.version)</code></pre>
 <pre><code>##                _                           
 ## platform       x86_64-w64-mingw32          
@@ -238,19 +238,17 @@ print(paste(&quot;last run &quot;, Sys.time()))</code></pre>
 <div id="read-in-data-and-tidy" class="section level1">
 <h1>Read in data and tidy</h1>
 <pre class="r"><code># read in data
-sl &lt;- read_csv(file.path(dataDir, '01_CombinedTrials_cleaned.csv'))
+sl &lt;- read_csv(file.path(dataDir, '01_InstrumentalLearning_annotated.csv'))
 
 # clean data
 sl &lt;- sl %&gt;%
-  # gets rid of the copious warnings
-  mutate(timeSinceStart = NA, 
-         timeSinceLastBuzz = NA, 
-         buzzesSinceReward = NA) %&gt;%
-  
+  # remove notes
+  dplyr::select(-notes) %&gt;%
+
   # make sure all bee colors are lowercase
   mutate(beeCol =  tolower(beeCol)) %&gt;%
   
-  # remove trials that contain errors
+  # remove trials that contain errors (labeled in dataset as &quot;discard&quot;)
   filter(!(beeCol == &quot;whitepink&quot; &amp; trialNum == 3)) %&gt;% 
   filter(!(beeCol == &quot;limepurple&quot; &amp; trialNum == 3)) %&gt;% 
   filter(!(beeCol == &quot;orange&quot; &amp; hive == 5)) %&gt;%
@@ -1043,7 +1041,7 @@ summary(m13)</code></pre>
 ## 
 ## Fixed effects:
 ##             Estimate Std. Error t value
-## (Intercept) 3.023874   0.044885  67.369
+## (Intercept) 3.023875   0.044885  67.369
 ## trthigh     0.207041   0.036904   5.610
 ## trtlow      0.043506   0.030667   1.419
 ## IT_centered 0.302005   0.110480   2.734
@@ -1127,7 +1125,7 @@ summary(glht(m13, linfct = mcp(trt = &quot;Tukey&quot;)),
 ##                  Estimate Std. Error z value Pr(&gt;|z|)    
 ## high - full == 0  0.20704    0.03690   5.610 6.06e-08 ***
 ## low - full == 0   0.04351    0.03067   1.419  0.46799    
-## low - high == 0  -0.16353    0.04709  -3.473  0.00155 ** 
+## low - high == 0  -0.16354    0.04709  -3.473  0.00155 ** 
 ## ---
 ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 ## (Adjusted p values reported -- bonferroni method)</code></pre>
@@ -1156,7 +1154,7 @@ summary(maa3)</code></pre>
 ## 
 ## Fixed effects:
 ##             Estimate Std. Error t value
-## (Intercept) 1.787882   0.456366   3.918
+## (Intercept) 1.787881   0.456366   3.918
 ## trthigh     0.207041   0.036904   5.610
 ## trtlow      0.043506   0.030667   1.419
 ## IT_imputed  0.302005   0.110480   2.734
@@ -1171,12 +1169,12 @@ summary(maa3)</code></pre>
 <div id="predict-some-values-with-acceleration-model" class="section level3">
 <h3>predict some values with acceleration model</h3>
 <pre class="r"><code>summary(m13)$coef</code></pre>
-<pre><code>##                Estimate  Std. Error    t value
-## (Intercept) 3.023874430 0.044885435 67.3687222
-## trthigh     0.207040637 0.036903781  5.6102825
-## trtlow      0.043505806 0.030666667  1.4186676
-## IT_centered 0.302005260 0.110479532  2.7335856
-## trialNum    0.009501089 0.009549081  0.9949742</code></pre>
+<pre><code>##               Estimate  Std. Error    t value
+## (Intercept) 3.02387457 0.044885320 67.3688990
+## trthigh     0.20704090 0.036903799  5.6102869
+## trtlow      0.04350589 0.030666681  1.4186695
+## IT_centered 0.30200543 0.110479593  2.7335857
+## trialNum    0.00950095 0.009549095  0.9949582</code></pre>
 <pre class="r"><code># generate data frame for predictions
 pframe1 &lt;- data.frame(expand.grid(trt = levels(sl$trt), 
                                  IT_centered = c(-1, 
@@ -1195,7 +1193,7 @@ pframe1 %&gt;%
   filter(IT_centered == 0) %&gt;%
   mutate(exp_preds = exp(preds))</code></pre>
 <pre><code>##    trt IT_centered beeColHive trialNum freq    preds exp_preds
-## 1 full           0      99999        2    0 3.042877  20.96547
+## 1 full           0      99999        2    0 3.042876  20.96546
 ## 2 high           0      99999        2    0 3.249917  25.78821
 ## 3  low           0      99999        2    0 3.086382  21.89772</code></pre>
 <pre class="r"><code>1.199933 * 21.10552</code></pre>
@@ -1205,7 +1203,7 @@ pframe1 %&gt;%
   mutate(exp_preds = exp(preds))</code></pre>
 <pre><code>##    trt IT_centered beeColHive trialNum freq    preds exp_preds
 ## 1 full           1      99999        2    0 3.344882  28.35723
-## 2 high           1      99999        2    0 3.551923  34.88031
+## 2 high           1      99999        2    0 3.551923  34.88032
 ## 3  low           1      99999        2    0 3.388388  29.61816</code></pre>
 <pre class="r"><code>1.199933 * 28.76815</code></pre>
 <pre><code>## [1] 34.51985</code></pre>
@@ -1216,8 +1214,8 @@ pframe1 %&gt;%
   filter(trt == &quot;full&quot;) %&gt;%
   mutate(exp_preds = exp(preds))</code></pre>
 <pre><code>##    trt IT_centered beeColHive trialNum freq    preds exp_preds
-## 1 full          -1      99999        2    0 2.740871  15.50049
-## 2 full           0      99999        2    0 3.042877  20.96547
+## 1 full          -1      99999        2    0 2.740871  15.50048
+## 2 full           0      99999        2    0 3.042876  20.96546
 ## 3 full           1      99999        2    0 3.344882  28.35723</code></pre>
 <pre class="r"><code>1.36 * 21.105</code></pre>
 <pre><code>## [1] 28.7028</code></pre>
@@ -1292,21 +1290,21 @@ ga1</code></pre>
 <div id="compare-acceleration-analysis-when-2-bees-without-it-are-missing" class="section level1">
 <h1>Compare acceleration analysis when 2 bees without IT are missing</h1>
 <pre class="r"><code>summary(m13)$coef</code></pre>
-<pre><code>##                Estimate  Std. Error    t value
-## (Intercept) 3.023874430 0.044885435 67.3687222
-## trthigh     0.207040637 0.036903781  5.6102825
-## trtlow      0.043505806 0.030666667  1.4186676
-## IT_centered 0.302005260 0.110479532  2.7335856
-## trialNum    0.009501089 0.009549081  0.9949742</code></pre>
+<pre><code>##               Estimate  Std. Error    t value
+## (Intercept) 3.02387457 0.044885320 67.3688990
+## trthigh     0.20704090 0.036903799  5.6102869
+## trtlow      0.04350589 0.030666681  1.4186695
+## IT_centered 0.30200543 0.110479593  2.7335857
+## trialNum    0.00950095 0.009549095  0.9949582</code></pre>
 <pre class="r"><code>missing_accel &lt;- update(m13, .~. - IT, data = sl[!is.na(sl$IT),])
 
 summary(missing_accel)$coef</code></pre>
 <pre><code>##                Estimate  Std. Error    t value
-## (Intercept) 3.042782632 0.043976989 69.1903352
-## trthigh     0.202722717 0.036690020  5.5252822
-## trtlow      0.042037903 0.030460132  1.3800959
-## IT_centered 0.313201144 0.104942580  2.9845001
-## trialNum    0.009313129 0.009600681  0.9700488</code></pre>
+## (Intercept) 3.042782587 0.043977037 69.1902594
+## trthigh     0.202722654 0.036690018  5.5252808
+## trtlow      0.042037885 0.030460130  1.3800954
+## IT_centered 0.313201090 0.104942566  2.9845000
+## trialNum    0.009313174 0.009600698  0.9700519</code></pre>
 </div>
 <div id="combine-freq-and-accel-plots-into-a-single-figure" class="section level1">
 <h1>Combine freq and accel plots into a single figure</h1>
