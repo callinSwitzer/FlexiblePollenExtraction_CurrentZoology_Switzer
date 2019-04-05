@@ -222,7 +222,7 @@ dataDir &lt;- file.path(getwd(), &quot;data&quot;)
 figDir &lt;- file.path(getwd(), &quot;figures&quot;)
 
 print(paste(&quot;last run &quot;, Sys.time()))</code></pre>
-<pre><code>## [1] &quot;last run  2019-01-14 13:47:53&quot;</code></pre>
+<pre><code>## [1] &quot;last run  2019-04-05 10:24:16&quot;</code></pre>
 <pre class="r"><code>print(R.version)</code></pre>
 <pre><code>##                _                           
 ## platform       x86_64-w64-mingw32          
@@ -231,14 +231,14 @@ print(paste(&quot;last run &quot;, Sys.time()))</code></pre>
 ## system         x86_64, mingw32             
 ## status                                     
 ## major          3                           
-## minor          5.1                         
-## year           2018                        
-## month          07                          
-## day            02                          
-## svn rev        74947                       
+## minor          5.3                         
+## year           2019                        
+## month          03                          
+## day            11                          
+## svn rev        76217                       
 ## language       R                           
-## version.string R version 3.5.1 (2018-07-02)
-## nickname       Feather Spray</code></pre>
+## version.string R version 3.5.3 (2019-03-11)
+## nickname       Great Truth</code></pre>
 <div id="read-in-data-and-tidy.-calculate-descriptive-statistics." class="section level1">
 <h1>Read in data and tidy. Calculate descriptive statistics.</h1>
 <pre class="r"><code>bees_raw &lt;- read_csv(file.path(dataDir, &quot;03_StartStop_cleaned.csv&quot;))
@@ -752,20 +752,20 @@ summary(g0$gam) </code></pre>
 ## 
 ## Parametric coefficients:
 ##                                                   Estimate Std. Error
-## (Intercept)                                        3.28208    0.03915
-## trt2Unrewarded -&gt; Rewarded                        -0.09822    0.05107
+## (Intercept)                                        3.28208    0.03916
+## trt2Unrewarded -&gt; Rewarded                        -0.09822    0.05108
 ## treatment_rewardedTRUE                            -0.12841    0.02241
 ## IT_centered                                        0.40419    0.06502
 ## hive5                                             -0.23634    0.04888
 ## trt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE  0.01144    0.04233
 ## treatment_rewardedTRUE:IT_centered                -0.16850    0.04839
 ##                                                   t value Pr(&gt;|t|)    
-## (Intercept)                                        83.828  &lt; 2e-16 ***
-## trt2Unrewarded -&gt; Rewarded                         -1.923 0.054510 .  
+## (Intercept)                                        83.823  &lt; 2e-16 ***
+## trt2Unrewarded -&gt; Rewarded                         -1.923 0.054526 .  
 ## treatment_rewardedTRUE                             -5.731 1.05e-08 ***
-## IT_centered                                         6.217 5.43e-10 ***
+## IT_centered                                         6.216 5.44e-10 ***
 ## hive5                                              -4.835 1.36e-06 ***
-## trt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE   0.270 0.787022    
+## trt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE   0.270 0.787041    
 ## treatment_rewardedTRUE:IT_centered                 -3.482 0.000502 ***
 ## ---
 ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
@@ -826,13 +826,13 @@ summary(g0$gam) </code></pre>
 ##  s(visitNum_positive):interaction(trt2, treatment_rewarded)Unrewarded -&gt; Rewarded.FALSE
 ##  s(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.FALSE
 ##                                                                                        
-##  Variance Std.Dev.
-##  0.04263  0.2065  
-##  0.00000  0.0000  
-##  0.00000  0.0000  
-##  0.00000  0.0000  
-##  0.00000  0.0000  
-##  0.38938  0.6240  
+##  Variance  Std.Dev. 
+##  4.264e-02 2.065e-01
+##  3.318e-10 1.821e-05
+##  0.000e+00 0.000e+00
+##  0.000e+00 0.000e+00
+##  1.071e-10 1.035e-05
+##  3.894e-01 6.240e-01
 ## Number of obs: 5851, groups:  beeID, 96; Xr.2, 8; Xr.1, 8; Xr.0, 8; Xr, 8
 ## 
 ## Fixed effects:
@@ -849,8 +849,8 @@ summary(g0$gam) </code></pre>
 ## Xs(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.TRUEFx1   0.01418
 ## Xs(visitNum_positive):interaction(trt2, treatment_rewarded)Unrewarded -&gt; Rewarded.TRUEFx1  -0.02694
 ##                                                                                            Std. Error
-## X(Intercept)                                                                                  0.03915
-## Xtrt2Unrewarded -&gt; Rewarded                                                                   0.05107
+## X(Intercept)                                                                                  0.03916
+## Xtrt2Unrewarded -&gt; Rewarded                                                                   0.05108
 ## Xtreatment_rewardedTRUE                                                                       0.02241
 ## XIT_centered                                                                                  0.06502
 ## Xhive5                                                                                        0.04888
@@ -861,10 +861,10 @@ summary(g0$gam) </code></pre>
 ## Xs(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.TRUEFx1     0.01386
 ## Xs(visitNum_positive):interaction(trt2, treatment_rewarded)Unrewarded -&gt; Rewarded.TRUEFx1     0.02507
 ##                                                                                            t value
-## X(Intercept)                                                                                83.828
+## X(Intercept)                                                                                83.823
 ## Xtrt2Unrewarded -&gt; Rewarded                                                                 -1.923
 ## Xtreatment_rewardedTRUE                                                                     -5.731
-## XIT_centered                                                                                 6.217
+## XIT_centered                                                                                 6.216
 ## Xhive5                                                                                      -4.835
 ## Xtrt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE                                           0.270
 ## Xtreatment_rewardedTRUE:IT_centered                                                         -3.482
@@ -1143,7 +1143,7 @@ BIC(g4$mer, g3$mer) # keep g4 -- no nonlinearities of visit number</code></pre>
 ## Fixed effects:
 ##                                                      Estimate Std. Error
 ## X(Intercept)                                        3.2583980  0.0412989
-## Xtrt2Unrewarded -&gt; Rewarded                        -0.0979967  0.0506250
+## Xtrt2Unrewarded -&gt; Rewarded                        -0.0979967  0.0506251
 ## Xtreatment_rewardedTRUE                            -0.1291942  0.0223486
 ## XIT_centered                                        0.4055853  0.0649342
 ## Xhive5                                             -0.2349121  0.0488044
@@ -1293,27 +1293,27 @@ BIC(m0, m01) # no 3-way interaction</code></pre>
 # m01 12 11369.21
 summary(m01)$coef</code></pre>
 <pre><code>##                                                       Estimate  Std. Error
-## (Intercept)                                        3.220291231 0.045666959
-## trt2Unrewarded -&gt; Rewarded                        -0.049426574 0.057046937
-## treatment_rewardedTRUE                            -0.085426609 0.037025275
-## IT_centered                                        0.403771647 0.065037950
-## hive5                                             -0.237051978 0.048873214
+## (Intercept)                                        3.220291227 0.045666967
+## trt2Unrewarded -&gt; Rewarded                        -0.049426569 0.057046948
+## treatment_rewardedTRUE                            -0.085426605 0.037025275
+## IT_centered                                        0.403771647 0.065037967
+## hive5                                             -0.237051979 0.048873228
 ## visitNum_positive                                  0.002672881 0.001009573
-## treatment_rewardedTRUE:IT_centered                -0.167661732 0.048363356
+## treatment_rewardedTRUE:IT_centered                -0.167661735 0.048363357
 ## treatment_rewardedTRUE:visitNum_positive          -0.001849443 0.001222143
 ## trt2Unrewarded -&gt; Rewarded:visitNum_positive      -0.002154913 0.001294404
-## trt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE  0.010317831 0.042268124
+## trt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE  0.010317827 0.042268124
 ##                                                      t value
-## (Intercept)                                       70.5168754
-## trt2Unrewarded -&gt; Rewarded                        -0.8664194
-## treatment_rewardedTRUE                            -2.3072512
-## IT_centered                                        6.2082468
-## hive5                                             -4.8503455
-## visitNum_positive                                  2.6475370
+## (Intercept)                                       70.5168617
+## trt2Unrewarded -&gt; Rewarded                        -0.8664192
+## treatment_rewardedTRUE                            -2.3072511
+## IT_centered                                        6.2082452
+## hive5                                             -4.8503442
+## visitNum_positive                                  2.6475369
 ## treatment_rewardedTRUE:IT_centered                -3.4667101
 ## treatment_rewardedTRUE:visitNum_positive          -1.5132793
 ## trt2Unrewarded -&gt; Rewarded:visitNum_positive      -1.6647918
-## trt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE  0.2441043</code></pre>
+## trt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE  0.2441042</code></pre>
 <pre class="r"><code>m1 &lt;- update(m01, .~. - trt2:treatment_rewarded)
 BIC(m01, m1) # keep m1</code></pre>
 <pre><code>##     df      BIC
@@ -1321,24 +1321,24 @@ BIC(m01, m1) # keep m1</code></pre>
 ## m1  11 11360.60</code></pre>
 <pre class="r"><code>summary(m1)$coef</code></pre>
 <pre><code>##                                                  Estimate  Std. Error
-## (Intercept)                                   3.218713826 0.045226621
-## trt2Unrewarded -&gt; Rewarded                   -0.046129958 0.055450602
-## treatment_rewardedTRUE                       -0.082288353 0.034728860
-## IT_centered                                   0.405332749 0.064752621
-## hive5                                        -0.237986669 0.048747902
+## (Intercept)                                   3.218713821 0.045226635
+## trt2Unrewarded -&gt; Rewarded                   -0.046129954 0.055450620
+## treatment_rewardedTRUE                       -0.082288349 0.034728860
+## IT_centered                                   0.405332749 0.064752647
+## hive5                                        -0.237986671 0.048747924
 ## visitNum_positive                             0.002666911 0.001009284
-## treatment_rewardedTRUE:IT_centered           -0.171405634 0.045871767
+## treatment_rewardedTRUE:IT_centered           -0.171405637 0.045871768
 ## treatment_rewardedTRUE:visitNum_positive     -0.001849779 0.001222148
 ## trt2Unrewarded -&gt; Rewarded:visitNum_positive -0.002153630 0.001294403
 ##                                                 t value
-## (Intercept)                                  71.1685669
-## trt2Unrewarded -&gt; Rewarded                   -0.8319109
-## treatment_rewardedTRUE                       -2.3694516
-## IT_centered                                   6.2597119
-## hive5                                        -4.8819879
+## (Intercept)                                  71.1685445
+## trt2Unrewarded -&gt; Rewarded                   -0.8319105
+## treatment_rewardedTRUE                       -2.3694515
+## IT_centered                                   6.2597093
+## hive5                                        -4.8819858
 ## visitNum_positive                             2.6423789
 ## treatment_rewardedTRUE:IT_centered           -3.7366259
-## treatment_rewardedTRUE:visitNum_positive     -1.5135475
+## treatment_rewardedTRUE:visitNum_positive     -1.5135476
 ## trt2Unrewarded -&gt; Rewarded:visitNum_positive -1.6638019</code></pre>
 <pre class="r"><code>m2 &lt;- update(m1, .~. - treatment_rewarded:visitNum_positive)
 BIC(m1, m2) # keep m2</code></pre>
@@ -1347,20 +1347,20 @@ BIC(m1, m2) # keep m2</code></pre>
 ## m2 10 11354.21</code></pre>
 <pre class="r"><code>summary(m2)$coef</code></pre>
 <pre><code>##                                                  Estimate   Std. Error
-## (Intercept)                                   3.245126455 0.0416876622
-## trt2Unrewarded -&gt; Rewarded                   -0.061476439 0.0544689118
-## treatment_rewardedTRUE                       -0.126955406 0.0183156444
-## IT_centered                                   0.404393727 0.0646774025
-## hive5                                        -0.236945081 0.0486841664
+## (Intercept)                                   3.245126453 0.0416876718
+## trt2Unrewarded -&gt; Rewarded                   -0.061476437 0.0544689235
+## treatment_rewardedTRUE                       -0.126955405 0.0183156445
+## IT_centered                                   0.404393727 0.0646774195
+## hive5                                        -0.236945083 0.0486841801
 ## visitNum_positive                             0.001616292 0.0007325942
-## treatment_rewardedTRUE:IT_centered           -0.172723048 0.0458695019
+## treatment_rewardedTRUE:IT_centered           -0.172723049 0.0458695025
 ## trt2Unrewarded -&gt; Rewarded:visitNum_positive -0.001737306 0.0012650742
 ##                                                t value
-## (Intercept)                                  77.843810
+## (Intercept)                                  77.843792
 ## trt2Unrewarded -&gt; Rewarded                   -1.128652
 ## treatment_rewardedTRUE                       -6.931528
-## IT_centered                                   6.252473
-## hive5                                        -4.866984
+## IT_centered                                   6.252472
+## hive5                                        -4.866983
 ## visitNum_positive                             2.206258
 ## treatment_rewardedTRUE:IT_centered           -3.765531
 ## trt2Unrewarded -&gt; Rewarded:visitNum_positive -1.373284</code></pre>
@@ -1371,13 +1371,13 @@ BIC(m2, m3) # keep m3</code></pre>
 ## m3  9 11347.42</code></pre>
 <pre class="r"><code>summary(m3)$coef</code></pre>
 <pre><code>##                                       Estimate   Std. Error   t value
-## (Intercept)                         3.25684402 0.0408059086 79.813050
-## trt2Unrewarded -&gt; Rewarded         -0.09473484 0.0487889928 -1.941726
+## (Intercept)                         3.25684402 0.0408059072 79.813053
+## trt2Unrewarded -&gt; Rewarded         -0.09473484 0.0487889909 -1.941726
 ## treatment_rewardedTRUE             -0.12611964 0.0183084248 -6.888612
-## IT_centered                         0.40711645 0.0646470340  6.297527
-## hive5                              -0.23583078 0.0486768753 -4.844822
+## IT_centered                         0.40711645 0.0646470316  6.297527
+## hive5                              -0.23583078 0.0486768733 -4.844822
 ## visitNum_positive                   0.00103389 0.0005974314  1.730558
-## treatment_rewardedTRUE:IT_centered -0.17322718 0.0458750647 -3.776064</code></pre>
+## treatment_rewardedTRUE:IT_centered -0.17322718 0.0458750646 -3.776064</code></pre>
 <pre class="r"><code>m4 &lt;- update(m3, .~. - treatment_rewarded:IT_centered)
 BIC(m3, m4) # keep m3</code></pre>
 <pre><code>##    df      BIC
@@ -1385,13 +1385,13 @@ BIC(m3, m4) # keep m3</code></pre>
 ## m4  8 11352.99</code></pre>
 <pre class="r"><code>summary(m3)$coef</code></pre>
 <pre><code>##                                       Estimate   Std. Error   t value
-## (Intercept)                         3.25684402 0.0408059086 79.813050
-## trt2Unrewarded -&gt; Rewarded         -0.09473484 0.0487889928 -1.941726
+## (Intercept)                         3.25684402 0.0408059072 79.813053
+## trt2Unrewarded -&gt; Rewarded         -0.09473484 0.0487889909 -1.941726
 ## treatment_rewardedTRUE             -0.12611964 0.0183084248 -6.888612
-## IT_centered                         0.40711645 0.0646470340  6.297527
-## hive5                              -0.23583078 0.0486768753 -4.844822
+## IT_centered                         0.40711645 0.0646470316  6.297527
+## hive5                              -0.23583078 0.0486768733 -4.844822
 ## visitNum_positive                   0.00103389 0.0005974314  1.730558
-## treatment_rewardedTRUE:IT_centered -0.17322718 0.0458750647 -3.776064</code></pre>
+## treatment_rewardedTRUE:IT_centered -0.17322718 0.0458750646 -3.776064</code></pre>
 <pre class="r"><code>m5 &lt;- update(m3, .~. - visitNum_positive)
 BIC(m3, m5) # keep m5</code></pre>
 <pre><code>##    df      BIC
@@ -1399,10 +1399,10 @@ BIC(m3, m5) # keep m5</code></pre>
 ## m5  8 11341.74</code></pre>
 <pre class="r"><code>summary(m5)$coef</code></pre>
 <pre><code>##                                      Estimate Std. Error   t value
-## (Intercept)                         3.2803685 0.03862248 84.934169
+## (Intercept)                         3.2803685 0.03862248 84.934166
 ## trt2Unrewarded -&gt; Rewarded         -0.0976735 0.04896401 -1.994802
 ## treatment_rewardedTRUE             -0.1252050 0.01830662 -6.839331
-## IT_centered                         0.4085306 0.06490261  6.294516
+## IT_centered                         0.4085306 0.06490262  6.294516
 ## hive5                              -0.2397969 0.04883296 -4.910554
 ## treatment_rewardedTRUE:IT_centered -0.1738009 0.04589395 -3.787011</code></pre>
 <pre class="r"><code>m6 &lt;- update(m5, .~. - trt2)
@@ -1412,10 +1412,10 @@ BIC(m5, m6) # keep m6</code></pre>
 ## m6  7 11336.95</code></pre>
 <pre class="r"><code>summary(m6)$coef</code></pre>
 <pre><code>##                                      Estimate Std. Error   t value
-## (Intercept)                         3.2376519 0.03292730 98.327294
+## (Intercept)                         3.2376519 0.03292729 98.327297
 ## treatment_rewardedTRUE             -0.1185930 0.01800842 -6.585421
 ## IT_centered                         0.4298477 0.06534738  6.577888
-## hive5                              -0.2523344 0.04951417 -5.096205
+## hive5                              -0.2523344 0.04951417 -5.096206
 ## treatment_rewardedTRUE:IT_centered -0.1744081 0.04595173 -3.795463</code></pre>
 <pre class="r"><code>m7 &lt;- update(m6, .~. - hive)
 BIC(m6, m7) # keep m6</code></pre>
@@ -1654,19 +1654,19 @@ qqline(ranef(mod_acc_sameAsFreq)$beeID[[1]])</code></pre>
 <h3>predict acceleration values for paper</h3>
 <pre class="r"><code>summary(mod_acc_sameAsFreq)$coef</code></pre>
 <pre><code>##                                                       Estimate Std. Error
-## (Intercept)                                        3.281150562 0.04008576
-## trt2Unrewarded -&gt; Rewarded                        -0.099681032 0.05187150
-## treatment_rewardedTRUE                            -0.127195814 0.02234866
-## IT_centered                                        0.407492650 0.06658148
+## (Intercept)                                        3.281150561 0.04008576
+## trt2Unrewarded -&gt; Rewarded                        -0.099681031 0.05187151
+## treatment_rewardedTRUE                            -0.127195813 0.02234866
+## IT_centered                                        0.407492650 0.06658149
 ## hive5                                             -0.239287554 0.05007749
-## treatment_rewardedTRUE:IT_centered                -0.171438725 0.04846868
-## trt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE  0.006877762 0.04231950
+## treatment_rewardedTRUE:IT_centered                -0.171438726 0.04846868
+## trt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE  0.006877761 0.04231950
 ##                                                      t value
-## (Intercept)                                       81.8532686
-## trt2Unrewarded -&gt; Rewarded                        -1.9216916
+## (Intercept)                                       81.8532625
+## trt2Unrewarded -&gt; Rewarded                        -1.9216914
 ## treatment_rewardedTRUE                            -5.6914279
-## IT_centered                                        6.1202098
-## hive5                                             -4.7783461
+## IT_centered                                        6.1202093
+## hive5                                             -4.7783457
 ## treatment_rewardedTRUE:IT_centered                -3.5371032
 ## trt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE  0.1625199</code></pre>
 <pre class="r"><code>exp(-0.127195814)</code></pre>
@@ -1829,7 +1829,7 @@ pframe0 %&gt;%
 ## 2 Rewarded -&gt; Unrewarded          -1               TRUE 2.917901  18.50241
 ##        Diff
 ## 1        NA
-## 2 0.8007558</code></pre>
+## 2 0.8007559</code></pre>
 <pre class="r"><code>exp(0.407492650 + -0.171438725)</code></pre>
 <pre><code>## [1] 1.266243</code></pre>
 <pre class="r"><code>nbootSims = 10000
@@ -1976,16 +1976,16 @@ summary(g00$gam) # Summary for paper </code></pre>
 ## (Intercept)                                        339.391      4.003
 ## trt2Unrewarded -&gt; Rewarded                         -14.799      5.127
 ## treatment_rewardedTRUE                             -10.946      1.333
-## IT_centered                                        -12.272      6.614
-## hive5                                               22.549      5.088
-## trt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE   10.690      2.538
+## IT_centered                                        -12.272      6.613
+## hive5                                               22.549      5.087
+## trt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE   10.690      2.539
 ## treatment_rewardedTRUE:IT_centered                 -14.154      2.926
 ##                                                   t value Pr(&gt;|t|)    
-## (Intercept)                                        84.782  &lt; 2e-16 ***
-## trt2Unrewarded -&gt; Rewarded                         -2.886  0.00391 ** 
+## (Intercept)                                        84.790  &lt; 2e-16 ***
+## trt2Unrewarded -&gt; Rewarded                         -2.887  0.00391 ** 
 ## treatment_rewardedTRUE                             -8.214 2.61e-16 ***
-## IT_centered                                        -1.855  0.06358 .  
-## hive5                                               4.432 9.50e-06 ***
+## IT_centered                                        -1.856  0.06356 .  
+## hive5                                               4.433 9.48e-06 ***
 ## trt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE   4.211 2.58e-05 ***
 ## treatment_rewardedTRUE:IT_centered                 -4.837 1.35e-06 ***
 ## ---
@@ -1993,25 +1993,25 @@ summary(g00$gam) # Summary for paper </code></pre>
 ## 
 ## Approximate significance of smooth terms:
 ##                                                                                          edf
-## s(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.FALSE 1.802
+## s(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.FALSE 1.797
 ## s(visitNum_positive):interaction(trt2, treatment_rewarded)Unrewarded -&gt; Rewarded.FALSE 1.000
-## s(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.TRUE  2.565
+## s(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.TRUE  2.566
 ## s(visitNum_positive):interaction(trt2, treatment_rewarded)Unrewarded -&gt; Rewarded.TRUE  1.000
 ##                                                                                        Ref.df
-## s(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.FALSE  1.802
+## s(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.FALSE  1.797
 ## s(visitNum_positive):interaction(trt2, treatment_rewarded)Unrewarded -&gt; Rewarded.FALSE  1.000
-## s(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.TRUE   2.565
+## s(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.TRUE   2.566
 ## s(visitNum_positive):interaction(trt2, treatment_rewarded)Unrewarded -&gt; Rewarded.TRUE   1.000
 ##                                                                                            F
-## s(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.FALSE 9.485
-## s(visitNum_positive):interaction(trt2, treatment_rewarded)Unrewarded -&gt; Rewarded.FALSE 0.662
-## s(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.TRUE  5.066
+## s(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.FALSE 9.478
+## s(visitNum_positive):interaction(trt2, treatment_rewarded)Unrewarded -&gt; Rewarded.FALSE 0.661
+## s(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.TRUE  5.065
 ## s(visitNum_positive):interaction(trt2, treatment_rewarded)Unrewarded -&gt; Rewarded.TRUE  0.363
 ##                                                                                         p-value
-## s(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.FALSE 0.000102
-## s(visitNum_positive):interaction(trt2, treatment_rewarded)Unrewarded -&gt; Rewarded.FALSE 0.416050
-## s(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.TRUE  0.006689
-## s(visitNum_positive):interaction(trt2, treatment_rewarded)Unrewarded -&gt; Rewarded.TRUE  0.547142
+## s(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.FALSE 0.000104
+## s(visitNum_positive):interaction(trt2, treatment_rewarded)Unrewarded -&gt; Rewarded.FALSE 0.416088
+## s(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.TRUE  0.006687
+## s(visitNum_positive):interaction(trt2, treatment_rewarded)Unrewarded -&gt; Rewarded.TRUE  0.547140
 ##                                                                                           
 ## s(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.FALSE ***
 ## s(visitNum_positive):interaction(trt2, treatment_rewarded)Unrewarded -&gt; Rewarded.FALSE    
@@ -2030,7 +2030,7 @@ summary(g00$gam) # Summary for paper </code></pre>
 ## 
 ## Scaled residuals: 
 ##     Min      1Q  Median      3Q     Max 
-## -4.9068 -0.4478  0.1500  0.6449  3.4843 
+## -4.9068 -0.4478  0.1501  0.6448  3.4842 
 ## 
 ## Random effects:
 ##  Groups  
@@ -2048,50 +2048,50 @@ summary(g00$gam) # Summary for paper </code></pre>
 ##  s(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.FALSE
 ##                                                                                        
 ##  Variance Std.Dev.
-##   542.72  23.296  
+##   542.61  23.294  
 ##     0.00   0.000  
-##    87.29   9.343  
+##    87.44   9.351  
 ##     0.00   0.000  
-##    28.44   5.333  
-##  1351.59  36.764  
+##    28.13   5.304  
+##  1351.60  36.764  
 ## Number of obs: 5851, groups:  beeID, 96; Xr.2, 8; Xr.1, 8; Xr.0, 8; Xr, 8
 ## 
 ## Fixed effects:
 ##                                                                                            Estimate
-## X(Intercept)                                                                               339.3906
-## Xtrt2Unrewarded -&gt; Rewarded                                                                -14.7994
-## Xtreatment_rewardedTRUE                                                                    -10.9459
-## XIT_centered                                                                               -12.2723
+## X(Intercept)                                                                               339.3905
+## Xtrt2Unrewarded -&gt; Rewarded                                                                -14.7992
+## Xtreatment_rewardedTRUE                                                                    -10.9458
+## XIT_centered                                                                               -12.2722
 ## Xhive5                                                                                      22.5486
 ## Xtrt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE                                          10.6897
-## Xtreatment_rewardedTRUE:IT_centered                                                        -14.1540
-## Xs(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.FALSEFx1   3.5936
-## Xs(visitNum_positive):interaction(trt2, treatment_rewarded)Unrewarded -&gt; Rewarded.FALSEFx1  -0.8875
-## Xs(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.TRUEFx1   -0.2996
+## Xtreatment_rewardedTRUE:IT_centered                                                        -14.1541
+## Xs(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.FALSEFx1   3.5978
+## Xs(visitNum_positive):interaction(trt2, treatment_rewarded)Unrewarded -&gt; Rewarded.FALSEFx1  -0.8874
+## Xs(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.TRUEFx1   -0.2992
 ## Xs(visitNum_positive):interaction(trt2, treatment_rewarded)Unrewarded -&gt; Rewarded.TRUEFx1    0.8902
 ##                                                                                            Std. Error
-## X(Intercept)                                                                                   4.0031
-## Xtrt2Unrewarded -&gt; Rewarded                                                                    5.1274
+## X(Intercept)                                                                                   4.0027
+## Xtrt2Unrewarded -&gt; Rewarded                                                                    5.1269
 ## Xtreatment_rewardedTRUE                                                                        1.3326
-## XIT_centered                                                                                   6.6141
-## Xhive5                                                                                         5.0876
+## XIT_centered                                                                                   6.6135
+## Xhive5                                                                                         5.0871
 ## Xtrt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE                                             2.5385
 ## Xtreatment_rewardedTRUE:IT_centered                                                            2.9260
-## Xs(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.FALSEFx1     2.2859
+## Xs(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.FALSEFx1     2.2765
 ## Xs(visitNum_positive):interaction(trt2, treatment_rewarded)Unrewarded -&gt; Rewarded.FALSEFx1     1.0912
-## Xs(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.TRUEFx1      3.3468
+## Xs(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.TRUEFx1      3.3488
 ## Xs(visitNum_positive):interaction(trt2, treatment_rewarded)Unrewarded -&gt; Rewarded.TRUEFx1      1.4785
 ##                                                                                            t value
-## X(Intercept)                                                                                84.782
-## Xtrt2Unrewarded -&gt; Rewarded                                                                 -2.886
+## X(Intercept)                                                                                84.790
+## Xtrt2Unrewarded -&gt; Rewarded                                                                 -2.887
 ## Xtreatment_rewardedTRUE                                                                     -8.214
-## XIT_centered                                                                                -1.855
-## Xhive5                                                                                       4.432
+## XIT_centered                                                                                -1.856
+## Xhive5                                                                                       4.433
 ## Xtrt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE                                           4.211
 ## Xtreatment_rewardedTRUE:IT_centered                                                         -4.837
-## Xs(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.FALSEFx1   1.572
+## Xs(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.FALSEFx1   1.580
 ## Xs(visitNum_positive):interaction(trt2, treatment_rewarded)Unrewarded -&gt; Rewarded.FALSEFx1  -0.813
-## Xs(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.TRUEFx1   -0.090
+## Xs(visitNum_positive):interaction(trt2, treatment_rewarded)Rewarded -&gt; Unrewarded.TRUEFx1   -0.089
 ## Xs(visitNum_positive):interaction(trt2, treatment_rewarded)Unrewarded -&gt; Rewarded.TRUEFx1    0.602
 ## 
 ## Correlation of Fixed Effects:
@@ -2157,28 +2157,28 @@ summary(g0$gam) # Summary for paper </code></pre>
 ## 
 ## Parametric coefficients:
 ##                                                   Estimate Std. Error
-## (Intercept)                                        339.360      3.961
-## trt2Unrewarded -&gt; Rewarded                         -13.909      5.067
+## (Intercept)                                        339.360      3.963
+## trt2Unrewarded -&gt; Rewarded                         -13.909      5.068
 ## treatment_rewardedTRUE                             -10.986      1.334
-## IT_centered                                        -11.919      6.545
-## hive5                                               23.009      5.033
-## trt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE   11.181      2.538
-## treatment_rewardedTRUE:IT_centered                 -14.527      2.929
+## IT_centered                                        -11.919      6.548
+## hive5                                               23.009      5.035
+## trt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE   11.180      2.538
+## treatment_rewardedTRUE:IT_centered                 -14.528      2.929
 ##                                                   t value Pr(&gt;|t|)    
-## (Intercept)                                        85.669  &lt; 2e-16 ***
-## trt2Unrewarded -&gt; Rewarded                         -2.745  0.00607 ** 
+## (Intercept)                                        85.642  &lt; 2e-16 ***
+## trt2Unrewarded -&gt; Rewarded                         -2.744  0.00608 ** 
 ## treatment_rewardedTRUE                             -8.237  &lt; 2e-16 ***
-## IT_centered                                        -1.821  0.06865 .  
-## hive5                                               4.572 4.94e-06 ***
+## IT_centered                                        -1.820  0.06875 .  
+## hive5                                               4.570 4.98e-06 ***
 ## trt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE   4.406 1.07e-05 ***
-## treatment_rewardedTRUE:IT_centered                 -4.959 7.27e-07 ***
+## treatment_rewardedTRUE:IT_centered                 -4.960 7.26e-07 ***
 ## ---
 ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 ## 
 ## Approximate significance of smooth terms:
-##                                                edf Ref.df     F p-value   
-## s(visitNum_positive):treatment_rewardedFALSE 1.000  1.000 7.642 0.00572 **
-## s(visitNum_positive):treatment_rewardedTRUE  2.022  2.022 2.596 0.07891 . 
+##                                               edf Ref.df     F p-value   
+## s(visitNum_positive):treatment_rewardedFALSE 1.00   1.00 7.642 0.00572 **
+## s(visitNum_positive):treatment_rewardedTRUE  2.02   2.02 2.592 0.07903 . 
 ## ---
 ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 ## 
@@ -2192,37 +2192,37 @@ summary(g0$gam) # Summary for paper </code></pre>
 ## 
 ## Scaled residuals: 
 ##     Min      1Q  Median      3Q     Max 
-## -4.7815 -0.4491  0.1440  0.6431  3.4886 
+## -4.7816 -0.4491  0.1440  0.6431  3.4886 
 ## 
 ## Random effects:
 ##  Groups   Name                                         Variance Std.Dev.
-##  beeID    (Intercept)                                   530.40  23.030  
-##  Xr.0     s(visitNum_positive):treatment_rewardedTRUE    25.78   5.077  
+##  beeID    (Intercept)                                   530.77  23.038  
+##  Xr.0     s(visitNum_positive):treatment_rewardedTRUE    25.65   5.065  
 ##  Xr       s(visitNum_positive):treatment_rewardedFALSE    0.00   0.000  
-##  Residual                                              1357.40  36.843  
+##  Residual                                              1357.38  36.843  
 ## Number of obs: 5851, groups:  beeID, 96; Xr.0, 8; Xr, 8
 ## 
 ## Fixed effects:
 ##                                                    Estimate Std. Error
-## X(Intercept)                                       339.3598     3.9613
-## Xtrt2Unrewarded -&gt; Rewarded                        -13.9087     5.0668
-## Xtreatment_rewardedTRUE                            -10.9860     1.3337
-## XIT_centered                                       -11.9194     6.5454
-## Xhive5                                              23.0090     5.0331
-## Xtrt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE  11.1809     2.5377
-## Xtreatment_rewardedTRUE:IT_centered                -14.5273     2.9292
-## Xs(visitNum_positive):treatment_rewardedFALSEFx1     1.9701     0.7126
-## Xs(visitNum_positive):treatment_rewardedTRUEFx1     -0.1270     2.0634
+## X(Intercept)                                       339.3597     3.9625
+## Xtrt2Unrewarded -&gt; Rewarded                        -13.9088     5.0684
+## Xtreatment_rewardedTRUE                            -10.9859     1.3337
+## XIT_centered                                       -11.9192     6.5475
+## Xhive5                                              23.0090     5.0347
+## Xtrt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE  11.1804     2.5377
+## Xtreatment_rewardedTRUE:IT_centered                -14.5281     2.9292
+## Xs(visitNum_positive):treatment_rewardedFALSEFx1     1.9700     0.7126
+## Xs(visitNum_positive):treatment_rewardedTRUEFx1     -0.1261     2.0596
 ##                                                    t value
-## X(Intercept)                                        85.669
-## Xtrt2Unrewarded -&gt; Rewarded                         -2.745
+## X(Intercept)                                        85.642
+## Xtrt2Unrewarded -&gt; Rewarded                         -2.744
 ## Xtreatment_rewardedTRUE                             -8.237
-## XIT_centered                                        -1.821
-## Xhive5                                               4.572
+## XIT_centered                                        -1.820
+## Xhive5                                               4.570
 ## Xtrt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE   4.406
-## Xtreatment_rewardedTRUE:IT_centered                 -4.959
+## Xtreatment_rewardedTRUE:IT_centered                 -4.960
 ## Xs(visitNum_positive):treatment_rewardedFALSEFx1     2.764
-## Xs(visitNum_positive):treatment_rewardedTRUEFx1     -0.062
+## Xs(visitNum_positive):treatment_rewardedTRUEFx1     -0.061
 ## 
 ## Correlation of Fixed Effects:
 ##             X(Int) Xt2U-&gt;R Xt_TRUE XIT_cn Xhive5 X2U-&gt;R: X_TRUE: X(N_):_F
@@ -2268,16 +2268,16 @@ BIC(g0$mer, g1$mer) # keep g0 -- smooth by treatment order</code></pre>
 ## -4.8688 -0.4467  0.1477  0.6473  3.4629 
 ## 
 ## Random effects:
-##  Groups   Name                                            Variance 
-##  beeID    (Intercept)                                     5.352e+02
-##  Xr.0     s(visitNum_positive):trt2Unrewarded -&gt; Rewarded 0.000e+00
-##  Xr       s(visitNum_positive):trt2Rewarded -&gt; Unrewarded 1.635e-12
-##  Residual                                                 1.358e+03
-##  Std.Dev. 
-##  2.314e+01
-##  0.000e+00
-##  1.279e-06
-##  3.686e+01
+##  Groups   Name                                            Variance
+##  beeID    (Intercept)                                      535.2  
+##  Xr.0     s(visitNum_positive):trt2Unrewarded -&gt; Rewarded    0.0  
+##  Xr       s(visitNum_positive):trt2Rewarded -&gt; Unrewarded    0.0  
+##  Residual                                                 1358.4  
+##  Std.Dev.
+##  23.14   
+##   0.00   
+##   0.00   
+##  36.86   
 ## Number of obs: 5851, groups:  beeID, 96; Xr.0, 8; Xr, 8
 ## 
 ## Fixed effects:
@@ -2417,8 +2417,8 @@ summary(m0)</code></pre>
 ## (Intercept)                                                            4.27741
 ## trt2Unrewarded -&gt; Rewarded                                             5.49472
 ## treatment_rewardedTRUE                                                 2.50601
-## IT_centered                                                            6.59439
-## hive5                                                                  5.07195
+## IT_centered                                                            6.59440
+## hive5                                                                  5.07196
 ## visitNum_positive                                                      0.06588
 ## treatment_rewardedTRUE:IT_centered                                     2.92954
 ## treatment_rewardedTRUE:visitNum_positive                               0.08772
@@ -2468,27 +2468,27 @@ BIC(m0, m01)# don't keep 3-way interaction</code></pre>
 ## m01 12 59200.48</code></pre>
 <pre class="r"><code>summary(m01)$coef</code></pre>
 <pre><code>##                                                      Estimate Std. Error
-## (Intercept)                                       334.7099179 4.20570066
-## trt2Unrewarded -&gt; Rewarded                        -10.6730611 5.29270945
-## treatment_rewardedTRUE                             -7.3183278 2.20642016
-## IT_centered                                       -12.2674114 6.56345122
-## hive5                                              22.9512779 5.04667680
+## (Intercept)                                       334.7099177 4.20570483
+## trt2Unrewarded -&gt; Rewarded                        -10.6730605 5.29271475
+## treatment_rewardedTRUE                             -7.3183277 2.20642015
+## IT_centered                                       -12.2674103 6.56345849
+## hive5                                              22.9512776 5.04668252
 ## visitNum_positive                                   0.2113608 0.05974691
-## treatment_rewardedTRUE:IT_centered                -14.4734971 2.92952803
+## treatment_rewardedTRUE:IT_centered                -14.4734997 2.92952807
 ## treatment_rewardedTRUE:visitNum_positive           -0.1613893 0.07257072
-## trt2Unrewarded -&gt; Rewarded:visitNum_positive       -0.1723802 0.07703865
-## trt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE  11.0833901 2.53764381
+## trt2Unrewarded -&gt; Rewarded:visitNum_positive       -0.1723803 0.07703865
+## trt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE  11.0833888 2.53764381
 ##                                                     t value
-## (Intercept)                                       79.584817
-## trt2Unrewarded -&gt; Rewarded                        -2.016559
+## (Intercept)                                       79.584738
+## trt2Unrewarded -&gt; Rewarded                        -2.016557
 ## treatment_rewardedTRUE                            -3.316833
-## IT_centered                                       -1.869049
-## hive5                                              4.547800
+## IT_centered                                       -1.869047
+## hive5                                              4.547795
 ## visitNum_positive                                  3.537602
-## treatment_rewardedTRUE:IT_centered                -4.940556
+## treatment_rewardedTRUE:IT_centered                -4.940557
 ## treatment_rewardedTRUE:visitNum_positive          -2.223890
-## trt2Unrewarded -&gt; Rewarded:visitNum_positive      -2.237581
-## trt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE  4.367591</code></pre>
+## trt2Unrewarded -&gt; Rewarded:visitNum_positive      -2.237582
+## trt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE  4.367590</code></pre>
 <pre class="r"><code>m1 &lt;- update(m01, .~. - treatment_rewarded:visitNum_positive)
 BIC(m01, m1) #keep m1</code></pre>
 <pre><code>##     df      BIC
@@ -2496,25 +2496,25 @@ BIC(m01, m1) #keep m1</code></pre>
 ## m1  11 59196.75</code></pre>
 <pre class="r"><code>summary(m1)$coef</code></pre>
 <pre><code>##                                                      Estimate Std. Error
-## (Intercept)                                       337.0447555 4.07864693
-## trt2Unrewarded -&gt; Rewarded                        -12.0550025 5.26376506
-## treatment_rewardedTRUE                            -11.2315275 1.33158227
-## IT_centered                                       -12.3801940 6.57348805
-## hive5                                              23.0520601 5.05447515
+## (Intercept)                                       337.0447553 4.07865114
+## trt2Unrewarded -&gt; Rewarded                        -12.0550018 5.26377029
+## treatment_rewardedTRUE                            -11.2315273 1.33158226
+## IT_centered                                       -12.3801929 6.57349517
+## hive5                                              23.0520598 5.05448075
 ## visitNum_positive                                   0.1203256 0.04353958
-## treatment_rewardedTRUE:IT_centered                -14.5971060 2.93029515
-## trt2Unrewarded -&gt; Rewarded:visitNum_positive       -0.1382691 0.07552410
-## trt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE  11.0582303 2.53869385
+## treatment_rewardedTRUE:IT_centered                -14.5971086 2.93029518
+## trt2Unrewarded -&gt; Rewarded:visitNum_positive       -0.1382692 0.07552410
+## trt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE  11.0582290 2.53869385
 ##                                                     t value
-## (Intercept)                                       82.636414
-## trt2Unrewarded -&gt; Rewarded                        -2.290186
+## (Intercept)                                       82.636329
+## trt2Unrewarded -&gt; Rewarded                        -2.290184
 ## treatment_rewardedTRUE                            -8.434723
-## IT_centered                                       -1.883352
-## hive5                                              4.560723
+## IT_centered                                       -1.883350
+## hive5                                              4.560718
 ## visitNum_positive                                  2.763591
 ## treatment_rewardedTRUE:IT_centered                -4.981446
 ## trt2Unrewarded -&gt; Rewarded:visitNum_positive      -1.830795
-## trt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE  4.355874</code></pre>
+## trt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE  4.355873</code></pre>
 <pre class="r"><code>m2 &lt;- update(m1, .~. -  visitNum_positive:trt2)
 BIC(m1, m2) # keep m2</code></pre>
 <pre><code>##    df      BIC
@@ -2522,10 +2522,10 @@ BIC(m1, m2) # keep m2</code></pre>
 ## m2 10 59191.43</code></pre>
 <pre class="r"><code>summary(m2)$coef</code></pre>
 <pre><code>##                                                       Estimate Std. Error
-## (Intercept)                                       337.92830503 4.03447353
+## (Intercept)                                       337.92830503 4.03447354
 ## trt2Unrewarded -&gt; Rewarded                        -14.60251730 5.05660552
 ## treatment_rewardedTRUE                            -11.14557609 1.33116079
-## IT_centered                                       -12.13982458 6.54596773
+## IT_centered                                       -12.13982458 6.54596774
 ## hive5                                              23.13379731 5.03367457
 ## visitNum_positive                                   0.07446548 0.03560017
 ## treatment_rewardedTRUE:IT_centered                -14.62950613 2.93091137
@@ -2546,10 +2546,10 @@ BIC(m2, m3) # keep m2</code></pre>
 ## m3  9 59201.79</code></pre>
 <pre class="r"><code>summary(m2)$coef</code></pre>
 <pre><code>##                                                       Estimate Std. Error
-## (Intercept)                                       337.92830503 4.03447353
+## (Intercept)                                       337.92830503 4.03447354
 ## trt2Unrewarded -&gt; Rewarded                        -14.60251730 5.05660552
 ## treatment_rewardedTRUE                            -11.14557609 1.33116079
-## IT_centered                                       -12.13982458 6.54596773
+## IT_centered                                       -12.13982458 6.54596774
 ## hive5                                              23.13379731 5.03367457
 ## visitNum_positive                                   0.07446548 0.03560017
 ## treatment_rewardedTRUE:IT_centered                -14.62950613 2.93091137
@@ -2570,10 +2570,10 @@ BIC(m2, m4) # keep m2</code></pre>
 ## m4  9 59207.54</code></pre>
 <pre class="r"><code>summary(m2)$coef</code></pre>
 <pre><code>##                                                       Estimate Std. Error
-## (Intercept)                                       337.92830503 4.03447353
+## (Intercept)                                       337.92830503 4.03447354
 ## trt2Unrewarded -&gt; Rewarded                        -14.60251730 5.05660552
 ## treatment_rewardedTRUE                            -11.14557609 1.33116079
-## IT_centered                                       -12.13982458 6.54596773
+## IT_centered                                       -12.13982458 6.54596774
 ## hive5                                              23.13379731 5.03367457
 ## visitNum_positive                                   0.07446548 0.03560017
 ## treatment_rewardedTRUE:IT_centered                -14.62950613 2.93091137
@@ -2594,21 +2594,21 @@ BIC(m2, m5) # keep m5</code></pre>
 ## m5  9 59187.12</code></pre>
 <pre class="r"><code>summary(m5)$coef</code></pre>
 <pre><code>##                                                    Estimate Std. Error
-## (Intercept)                                       339.54465   3.976916
-## trt2Unrewarded -&gt; Rewarded                        -14.72877   5.078013
+## (Intercept)                                       339.54465   3.976921
+## trt2Unrewarded -&gt; Rewarded                        -14.72877   5.078018
 ## treatment_rewardedTRUE                            -10.99275   1.329631
-## IT_centered                                       -11.97510   6.573997
-## hive5                                              22.80284   5.053565
+## IT_centered                                       -11.97509   6.574004
+## hive5                                              22.80284   5.053571
 ## treatment_rewardedTRUE:IT_centered                -14.79956   2.931119
 ## trt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE  10.80457   2.536646
 ##                                                     t value
-## (Intercept)                                       85.378884
-## trt2Unrewarded -&gt; Rewarded                        -2.900500
+## (Intercept)                                       85.378788
+## trt2Unrewarded -&gt; Rewarded                        -2.900497
 ## treatment_rewardedTRUE                            -8.267522
-## IT_centered                                       -1.821585
-## hive5                                              4.512227
-## treatment_rewardedTRUE:IT_centered                -5.049117
-## trt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE  4.259394</code></pre>
+## IT_centered                                       -1.821583
+## hive5                                              4.512222
+## treatment_rewardedTRUE:IT_centered                -5.049118
+## trt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE  4.259393</code></pre>
 <pre class="r"><code>m6 &lt;- update(m5, .~. - hive)
 BIC(m5, m6) # keep m5</code></pre>
 <pre><code>##    df      BIC
@@ -2630,7 +2630,7 @@ summary(finMod_freq)</code></pre>
 ## 
 ## Random effects:
 ##  Groups   Name        Variance Std.Dev.
-##  beeID    (Intercept)  561.5   23.70   
+##  beeID    (Intercept)  561.5   23.69   
 ##  Residual             1360.9   36.89   
 ## Number of obs: 5851, groups:  beeID, 96
 ## 
@@ -2719,7 +2719,7 @@ summary(fullMod_freq)</code></pre>
 ## trt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE                     0.94613
 ## trt2Unrewarded -&gt; Rewarded:treatment_rewardedTRUE:visitNum_positive   0.41901
 ##                                                                     Std. Error
-## (Intercept)                                                            4.35978
+## (Intercept)                                                            4.35979
 ## trt2Unrewarded -&gt; Rewarded                                             5.59764
 ## treatment_rewardedTRUE                                                 2.50799
 ## IT_centered                                                            6.73894
@@ -2960,7 +2960,8 @@ dev.off()</code></pre>
 <pre><code>## png 
 ##   2</code></pre>
 <pre class="r"><code># save as tiff
-save_plot(file.path(figDir, &quot;002_CombinedFreqAmp_rewNoRew_IT_Order.tiff&quot;), plot = aa, dpi = 500,  base_width = 6.5, base_height = 6)</code></pre>
+save_plot(file.path(figDir, &quot;002_CombinedFreqAmp_rewNoRew_IT_Order.tiff&quot;), 
+          plot = aa, dpi = 500,  base_width = 6.5, base_height = 6, type = &quot;cairo&quot;, compression = &quot;lzw&quot;)</code></pre>
 </div>
 </div>
 <div id="make-plots-of-time-vs.performance-raw-data-loess-line" class="section level1">
@@ -3035,7 +3036,7 @@ ggdraw(ab)</code></pre>
 save_plot(file.path(figDir, &quot;TimePlots_rewardNoReward_lowRes.png&quot;), 
           plot = ab, base_width = 6.5, base_height = 5, dpi = 200)</code></pre>
 <pre class="r"><code>sessionInfo()</code></pre>
-<pre><code>## R version 3.5.1 (2018-07-02)
+<pre><code>## R version 3.5.3 (2019-03-11)
 ## Platform: x86_64-w64-mingw32/x64 (64-bit)
 ## Running under: Windows 10 x64 (build 17763)
 ## 
@@ -3052,38 +3053,38 @@ save_plot(file.path(figDir, &quot;TimePlots_rewardNoReward_lowRes.png&quot;),
 ## [1] stats     graphics  grDevices utils     datasets  methods   base     
 ## 
 ## other attached packages:
-##  [1] bindrcpp_0.2.2  forcats_0.3.0   stringr_1.3.1   dplyr_0.7.8    
-##  [5] purrr_0.2.5     readr_1.3.0     tidyr_0.8.2     tibble_1.4.2   
-##  [9] tidyverse_1.2.1 coxme_2.2-10    bdsmatrix_1.3-3 cowplot_0.9.3  
-## [13] gamm4_0.2-5     mgcv_1.8-24     nlme_3.1-137    survminer_0.4.3
-## [17] ggpubr_0.2      magrittr_1.5    GGally_1.4.0    ggplot2_3.1.0  
-## [21] effects_4.1-0   carData_3.0-2   plyr_1.8.4      multcomp_1.4-8 
-## [25] TH.data_1.0-9   MASS_7.3-50     survival_2.43-3 mvtnorm_1.0-8  
-## [29] lme4_1.1-19     Matrix_1.2-14  
+##  [1] forcats_0.4.0   stringr_1.4.0   dplyr_0.8.0.1   purrr_0.3.1    
+##  [5] readr_1.3.1     tidyr_0.8.3     tibble_2.0.1    tidyverse_1.2.1
+##  [9] coxme_2.2-10    bdsmatrix_1.3-3 cowplot_0.9.4   gamm4_0.2-5    
+## [13] mgcv_1.8-27     nlme_3.1-137    survminer_0.4.3 ggpubr_0.2     
+## [17] magrittr_1.5    GGally_1.4.0    ggplot2_3.1.0   effects_4.1-0  
+## [21] carData_3.0-2   plyr_1.8.4      multcomp_1.4-10 TH.data_1.0-10 
+## [25] MASS_7.3-51.1   survival_2.43-3 mvtnorm_1.0-10  lme4_1.1-21    
+## [29] Matrix_1.2-15  
 ## 
 ## loaded via a namespace (and not attached):
 ##  [1] httr_1.4.0         viridisLite_0.3.0  jsonlite_1.6      
-##  [4] splines_3.5.1      modelr_0.1.2       assertthat_0.2.0  
+##  [4] splines_3.5.3      modelr_0.1.4       assertthat_0.2.0  
 ##  [7] cellranger_1.1.0   yaml_2.2.0         pillar_1.3.1      
-## [10] backports_1.1.2    lattice_0.20-35    glue_1.3.0        
+## [10] backports_1.1.3    lattice_0.20-38    glue_1.3.0        
 ## [13] digest_0.6.18      RColorBrewer_1.1-2 rvest_0.3.2       
-## [16] minqa_1.2.4        colorspace_1.3-2   sandwich_2.5-0    
-## [19] cmprsk_2.2-7       htmltools_0.3.6    survey_3.34       
-## [22] pkgconfig_2.0.2    broom_0.5.1        haven_2.0.0       
+## [16] minqa_1.2.4        colorspace_1.4-0   sandwich_2.5-0    
+## [19] cmprsk_2.2-7       htmltools_0.3.6    survey_3.35-1     
+## [22] pkgconfig_2.0.2    broom_0.5.1        haven_2.1.0       
 ## [25] xtable_1.8-3       scales_1.0.0       km.ci_0.5-2       
 ## [28] KMsurv_0.1-5       generics_0.0.2     withr_2.1.2       
 ## [31] nnet_7.3-12        lazyeval_0.2.1     cli_1.0.1         
-## [34] readxl_1.1.0       crayon_1.3.4       evaluate_0.12     
-## [37] fansi_0.4.0        xml2_1.2.0         tools_3.5.1       
-## [40] data.table_1.11.8  hms_0.4.2          munsell_0.5.0     
-## [43] compiler_3.5.1     rlang_0.3.0.1      grid_3.5.1        
-## [46] nloptr_1.2.1       rstudioapi_0.8     labeling_0.3      
-## [49] rmarkdown_1.11     gtable_0.2.0       codetools_0.2-15  
-## [52] reshape_0.8.8      reshape2_1.4.3     R6_2.3.0          
-## [55] gridExtra_2.3      zoo_1.8-4          lubridate_1.7.4   
-## [58] knitr_1.21         utf8_1.1.4         survMisc_0.5.5    
-## [61] bindr_0.1.1        rprojroot_1.3-2    stringi_1.2.4     
-## [64] Rcpp_1.0.0         tidyselect_0.2.5   xfun_0.4</code></pre>
+## [34] crayon_1.3.4       readxl_1.3.0       evaluate_0.13     
+## [37] fansi_0.4.0        xml2_1.2.0         tools_3.5.3       
+## [40] data.table_1.12.0  hms_0.4.2          munsell_0.5.0     
+## [43] compiler_3.5.3     rlang_0.3.1        grid_3.5.3        
+## [46] nloptr_1.2.1       rstudioapi_0.9.0   labeling_0.3      
+## [49] rmarkdown_1.11     boot_1.3-20        gtable_0.2.0      
+## [52] codetools_0.2-16   reshape_0.8.8      reshape2_1.4.3    
+## [55] R6_2.4.0           gridExtra_2.3      zoo_1.8-4         
+## [58] lubridate_1.7.4    knitr_1.22         utf8_1.1.4        
+## [61] survMisc_0.5.5     rprojroot_1.3-2    stringi_1.3.1     
+## [64] Rcpp_1.0.0         tidyselect_0.2.5   xfun_0.5</code></pre>
 </div>
 
 

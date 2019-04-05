@@ -701,18 +701,12 @@ pamp <- Fig2b +
               legend.background = element_rect(fill="transparent", colour = NA),
               panel.spacing.x = unit(1, "lines"))
 
-  
-
-aa <- plot_grid(pfreq, pamp, align = 'h', axis = 'l', rel_widths = c(1,1))
-
-ggdraw(aa)
-
 
 save_plot(file.path(figDir, "003_HeavyLight.tiff"), 
-          plot = aa, base_width = 6.5, base_height = 3, dpi = 500)
+          plot = aa, base_width = 6.5, base_height = 3, dpi = 500, type = "cairo", compression = "lzw")
 
 save_plot(file.path(figDir, "003_HeavyLight_lowRes.png"), 
-          plot = aa, base_width = 6.5, base_height = 3, dpi = 150)
+          plot = aa, base_width = 6.5, base_height = 3, dpi = 500, type = "cairo")
 ```
 
 

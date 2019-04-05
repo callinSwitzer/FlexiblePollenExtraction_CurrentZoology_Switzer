@@ -1155,7 +1155,8 @@ ggdraw(aa)
 dev.off()
 
 # save as tiff
-save_plot(file.path(figDir, "002_CombinedFreqAmp_rewNoRew_IT_Order.tiff"), plot = aa, dpi = 500,  base_width = 6.5, base_height = 6)
+save_plot(file.path(figDir, "002_CombinedFreqAmp_rewNoRew_IT_Order.tiff"), 
+          plot = aa, dpi = 500,  base_width = 6.5, base_height = 6, type = "cairo", compression = "lzw")
 
 ```
 
