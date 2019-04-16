@@ -702,8 +702,14 @@ pamp <- Fig2b +
               panel.spacing.x = unit(1, "lines"))
 
 
+aa <- plot_grid(pfreq, pamp, align = 'h', axis = 'l', rel_widths = c(1,1))
+
 save_plot(file.path(figDir, "003_HeavyLight.tiff"), 
           plot = aa, base_width = 6.5, base_height = 3, dpi = 500, type = "cairo", compression = "lzw")
+
+# save pdf
+save_plot(file.path(figDir, "003_HeavyLight.pdf"), 
+          plot = aa, base_width = 6.5, base_height = 3)
 
 save_plot(file.path(figDir, "003_HeavyLight_lowRes.png"), 
           plot = aa, base_width = 6.5, base_height = 3, dpi = 500, type = "cairo")
